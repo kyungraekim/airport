@@ -185,7 +185,8 @@ coverage.xml
 .ruff_cache/
 
 # Model artifacts (for development)
-models/
+# Note: This ignores ML model artifacts but NOT app/models/ (Pydantic models)
+/models/
 artifacts/
 *.bin
 *.pth
