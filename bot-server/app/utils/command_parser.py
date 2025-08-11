@@ -232,12 +232,22 @@ Examples:
             return """
 **Available Commands:**
 
-- `/train` - Train a model with specified parameters
+**🔬 Issue Commands (Long-running ML jobs):**
+- `/train` - Train a model with specified parameters  
 - `/eval` - Evaluate models with metrics
-- `/test` - Run tests on models
 - `/pipeline` - Execute a multi-step pipeline
+
+**🧪 Pull Request Commands (Testing changes):**
+- `/test` - Run tests on models
+
+**📊 Universal Commands (Work anywhere):**
 - `/status` - Check job status
 - `/help` - Show this help message
+
+**💡 Hybrid Approach:**
+- **Issues**: For planning, ML experiments, and long-running jobs
+- **Pull Requests**: For testing specific code changes  
+- **Both**: Status updates and help
 
 Use `/help <command>` for detailed command usage.
             """.strip()

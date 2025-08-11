@@ -46,37 +46,51 @@ def extract_slash_command(comment_body: str) -> Optional[str]:
     
     return None
 
-def is_pr_comment_event(payload: dict) -> bool:
-    """Check if webhook payload is a PR comment event."""
+def detect_comment_context(payload: dict) -> Optional[str]:
+    """Detect the context type from GitHub webhook payload.
+    
+    Returns:
+        'issue' for issue comments (not on PRs)
+        'pr' for PR comments 
+        None if not a valid comment event
+    """
     import structlog
+    from app.models.commands import ContextType
     logger = structlog.get_logger()
     
-    has_action_created = payload.get('action') == 'created'
-    has_comment = 'comment' in payload
-    has_pull_request = 'pull_request' in payload
+    # Must be a comment creation event
+    if payload.get('action') != 'created' or 'comment' not in payload:
+        logger.debug("Not a comment creation event")
+        return None
     
-    # Check if issue has pull_request field (indicates it's a PR)
-    issue_is_pr = False
+    # Check if this is an issue comment
     if 'issue' in payload:
-        issue_is_pr = 'pull_request' in payload.get('issue', {})
+        issue = payload['issue']
+        
+        # If issue has pull_request field, it's a PR comment
+        if 'pull_request' in issue:
+            logger.debug("Detected PR comment via issue.pull_request")
+            return ContextType.PULL_REQUEST
+        else:
+            # Regular issue comment
+            logger.debug("Detected Issue comment")
+            return ContextType.ISSUE
     
-    logger.debug("PR comment detection", 
-                has_action_created=has_action_created,
-                has_comment=has_comment, 
-                has_pull_request=has_pull_request,
-                has_issue=('issue' in payload),
-                issue_is_pr=issue_is_pr,
-                issue_keys=list(payload.get('issue', {}).keys()) if 'issue' in payload else [])
+    # Direct PR comment (rare case)
+    elif 'pull_request' in payload:
+        logger.debug("Detected PR comment via top-level pull_request")
+        return ContextType.PULL_REQUEST
     
-    # A PR comment event has:
-    # 1. action: "created" 
-    # 2. comment field
-    # 3. Either pull_request field OR issue.pull_request field
-    is_pr_comment = (
-        has_action_created and
-        has_comment and
-        (has_pull_request or issue_is_pr)
-    )
-    
-    logger.debug("PR comment result", is_pr_comment=is_pr_comment)
-    return is_pr_comment
+    logger.debug("Could not determine comment context")
+    return None
+
+def is_comment_event(payload: dict) -> bool:
+    """Check if webhook payload is any comment event (issue or PR)."""
+    return detect_comment_context(payload) is not None
+
+# Legacy function for backward compatibility
+def is_pr_comment_event(payload: dict) -> bool:
+    """Check if webhook payload is a PR comment event."""
+    context = detect_comment_context(payload)
+    from app.models.commands import ContextType
+    return context == ContextType.PULL_REQUEST

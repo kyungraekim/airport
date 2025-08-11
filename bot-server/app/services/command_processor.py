@@ -2,7 +2,10 @@ import structlog
 from typing import Optional
 from datetime import datetime
 
-from app.models.commands import CommandConfig, CommandRequest, GitHubContext, CommandType
+from app.models.commands import (
+    CommandConfig, CommandRequest, GitHubContext, CommandType, ContextType,
+    is_command_allowed_in_context, get_command_context_suggestion
+)
 from app.models.jobs import Job, JobType
 from app.utils.command_parser import CommandParser
 from app.services.github_service import GitHubService
@@ -28,7 +31,7 @@ class CommandProcessor:
             logger.debug("Starting command processing", 
                         command=command_text,
                         repo=github_context.repository,
-                        pr_number=github_context.pull_request_number)
+                        context=github_context.display_context)
             
             # Parse the command
             command_config = CommandParser.parse_command(command_text)
@@ -41,6 +44,26 @@ class CommandProcessor:
                 await self._send_error_response(
                     github_context, 
                     f"Invalid command format: {command_text}"
+                )
+                return
+            
+            # Validate command is allowed in current context
+            if not is_command_allowed_in_context(command_config.command_type, github_context.context_type):
+                suggestion = get_command_context_suggestion(command_config.command_type)
+                logger.debug("Command not allowed in context", 
+                           command=command_config.command_type,
+                           context=github_context.context_type,
+                           allowed_contexts=suggestion)
+                
+                await self._send_error_response(
+                    github_context,
+                    f"❌ **Command Not Allowed Here**\n\n"
+                    f"The `/{command_config.command_type.value}` command can only be used **{suggestion}**.\n\n"
+                    f"You tried to use it in **{github_context.display_context}**.\n\n"
+                    f"**Hybrid Command Rules:**\n"
+                    f"- **Issues**: `/train`, `/eval`, `/pipeline` (long-running ML jobs)\n"
+                    f"- **Pull Requests**: `/test` (testing specific changes)\n"
+                    f"- **Anywhere**: `/status`, `/help`"
                 )
                 return
             
@@ -76,7 +99,7 @@ I'll update this comment with progress. You can also check status with `/status 
             logger.debug("Sending initial job response", job_id=job.job_id)
             response = await self.github_service.create_pr_comment(
                 repo=github_context.repository,
-                pr_number=github_context.pull_request_number,
+                pr_number=github_context.target_number,
                 body=initial_message
             )
             
@@ -263,12 +286,13 @@ I'll update this comment with progress. You can also check status with `/status 
         """Send a response to the GitHub PR."""
         logger.debug("Sending response to GitHub", 
                     repo=github_context.repository,
-                    pr_number=github_context.pull_request_number,
+                    target_number=github_context.target_number,
+                    context=github_context.display_context,
                     message_length=len(message))
         
         response = await self.github_service.create_pr_comment(
             repo=github_context.repository,
-            pr_number=github_context.pull_request_number,
+            pr_number=github_context.target_number,
             body=message
         )
         
