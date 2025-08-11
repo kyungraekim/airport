@@ -25,9 +25,19 @@ class CommandProcessor:
     ):
         """Process a command received from GitHub PR comment."""
         try:
+            logger.debug("Starting command processing", 
+                        command=command_text,
+                        repo=github_context.repository,
+                        pr_number=github_context.pull_request_number)
+            
             # Parse the command
             command_config = CommandParser.parse_command(command_text)
+            logger.debug("Command parsing result", 
+                        success=bool(command_config),
+                        command_type=command_config.command_type if command_config else None)
+            
             if not command_config:
+                logger.debug("Invalid command, sending error response")
                 await self._send_error_response(
                     github_context, 
                     f"Invalid command format: {command_text}"
@@ -36,16 +46,20 @@ class CommandProcessor:
             
             # Handle help command
             if command_config.command_type == CommandType.HELP:
+                logger.debug("Processing HELP command")
                 help_text = CommandParser.get_help_text()
+                logger.debug("Generated help text", text_length=len(help_text))
                 await self._send_response(github_context, help_text)
                 return
             
             # Handle status command
             if command_config.command_type == CommandType.STATUS:
+                logger.debug("Processing STATUS command")
                 await self._handle_status_command(command_config, github_context)
                 return
             
             # Create job for execution
+            logger.debug("Creating job for command execution")
             job = await self._create_job_from_command(command_config, github_context)
             
             # Send initial response
@@ -59,21 +73,33 @@ class CommandProcessor:
 I'll update this comment with progress. You can also check status with `/status --job={job.job_id}`
             """.strip()
             
+            logger.debug("Sending initial job response", job_id=job.job_id)
             response = await self.github_service.create_pr_comment(
                 repo=github_context.repository,
                 pr_number=github_context.pull_request_number,
                 body=initial_message
             )
             
+            logger.debug("GitHub comment response", 
+                        status_code=response.status_code,
+                        success=response.status_code == 201)
+            
             if response.status_code == 201:
                 # Store comment ID for updates
-                job.external_job_ids["github_comment_id"] = str(response.data.get("id"))
+                comment_id = response.data.get("id")
+                job.external_job_ids["github_comment_id"] = str(comment_id)
+                logger.debug("Stored comment ID for updates", comment_id=comment_id)
+            else:
+                logger.warning("Failed to create initial comment", 
+                             status_code=response.status_code,
+                             error=response.data)
             
             # Start job execution
+            logger.debug("Starting job execution")
             await self.job_manager.start_job(job)
             
         except Exception as e:
-            logger.error("Error processing command from GitHub", error=str(e))
+            logger.error("Error processing command from GitHub", error=str(e), exc_info=True)
             await self._send_error_response(
                 github_context, 
                 f"Internal error processing command: {str(e)}"
@@ -235,16 +261,27 @@ I'll update this comment with progress. You can also check status with `/status 
     
     async def _send_response(self, github_context: GitHubContext, message: str):
         """Send a response to the GitHub PR."""
+        logger.debug("Sending response to GitHub", 
+                    repo=github_context.repository,
+                    pr_number=github_context.pull_request_number,
+                    message_length=len(message))
+        
         response = await self.github_service.create_pr_comment(
             repo=github_context.repository,
             pr_number=github_context.pull_request_number,
             body=message
         )
         
+        logger.debug("GitHub response received", 
+                    status_code=response.status_code,
+                    success=response.status_code == 201)
+        
         if response.status_code != 201:
             logger.error("Failed to send GitHub response", 
                         status_code=response.status_code,
                         error=response.data)
+        else:
+            logger.debug("Successfully sent response to GitHub")
     
     async def _send_error_response(self, github_context: GitHubContext, error_message: str):
         """Send an error response to the GitHub PR."""

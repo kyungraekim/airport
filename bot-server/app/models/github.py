@@ -5,39 +5,39 @@ from datetime import datetime
 class GitHubUser(BaseModel):
     """GitHub user information."""
     login: str
-    id: int
-    avatar_url: str
-    html_url: str
+    id: Optional[int] = None
+    avatar_url: Optional[str] = None
+    html_url: Optional[str] = None
 
 class GitHubRepository(BaseModel):
     """GitHub repository information."""
-    id: int
-    name: str
+    id: Optional[int] = None
+    name: Optional[str] = None
     full_name: str
-    html_url: str
-    clone_url: str
-    default_branch: str
+    html_url: Optional[str] = None
+    clone_url: Optional[str] = None
+    default_branch: Optional[str] = None
 
 class GitHubPullRequest(BaseModel):
     """GitHub pull request information."""
-    id: int
+    id: Optional[int] = None
     number: int
-    title: str
+    title: Optional[str] = None
     body: Optional[str] = None
-    state: str
-    html_url: str
-    head_ref: str
-    base_ref: str
-    user: GitHubUser
+    state: Optional[str] = None
+    html_url: Optional[str] = None
+    head_ref: Optional[str] = None
+    base_ref: Optional[str] = None
+    user: Optional[GitHubUser] = None
 
 class GitHubComment(BaseModel):
     """GitHub PR comment information."""
     id: int
     body: str
     user: GitHubUser
-    created_at: datetime
-    updated_at: datetime
-    html_url: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    html_url: Optional[str] = None
 
 class GitHubWebhookPayload(BaseModel):
     """GitHub webhook payload structure."""
@@ -45,7 +45,7 @@ class GitHubWebhookPayload(BaseModel):
     repository: GitHubRepository
     pull_request: Optional[GitHubPullRequest] = None
     comment: Optional[GitHubComment] = None
-    sender: GitHubUser
+    sender: Optional[GitHubUser] = None
     installation: Optional[Dict[str, Any]] = None
 
 class GitHubAPIResponse(BaseModel):

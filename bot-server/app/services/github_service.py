@@ -29,14 +29,36 @@ class GitHubService:
         url = f"{self.base_url}/repos/{repo}/issues/{pr_number}/comments"
         comment_data = GitHubCommentCreate(body=body)
         
+        logger.debug("Creating PR comment", 
+                    repo=repo,
+                    pr_number=pr_number,
+                    url=url,
+                    has_token=bool(self.token),
+                    body_length=len(body))
+        
+        logger.debug("Request headers", headers=self.headers)
+        
         async with httpx.AsyncClient() as client:
             try:
+                logger.debug("Sending HTTP POST request to GitHub API")
                 response = await client.post(
                     url,
                     json=comment_data.dict(),
                     headers=self.headers,
                     timeout=30.0
                 )
+                
+                logger.debug("Received GitHub API response", 
+                           status_code=response.status_code,
+                           content_length=len(response.content) if response.content else 0)
+                
+                response_data = response.json() if response.content else {}
+                logger.debug("Response data keys", keys=list(response_data.keys()) if response_data else [])
+                
+                if response.status_code != 201:
+                    logger.warning("Non-success status from GitHub API", 
+                                 status_code=response.status_code,
+                                 response_data=response_data)
                 
                 logger.info(
                     "Created PR comment",
@@ -47,12 +69,18 @@ class GitHubService:
                 
                 return GitHubAPIResponse(
                     status_code=response.status_code,
-                    data=response.json() if response.content else {},
+                    data=response_data,
                     headers=dict(response.headers)
                 )
             
             except httpx.RequestError as e:
-                logger.error("Failed to create PR comment", error=str(e))
+                logger.error("HTTP request failed for PR comment", error=str(e), exc_info=True)
+                return GitHubAPIResponse(
+                    status_code=500,
+                    data={"error": str(e)}
+                )
+            except Exception as e:
+                logger.error("Unexpected error creating PR comment", error=str(e), exc_info=True)
                 return GitHubAPIResponse(
                     status_code=500,
                     data={"error": str(e)}
