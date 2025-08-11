@@ -1,6 +1,6 @@
 # CLAUDE.md - Development Context
 
-This file provides context for Claude Code about the Model Validation Bot project.
+This repository contains multiple components. The Model Validation Bot server is located in the `bot-server/` directory.
 
 ## Project Overview
 
@@ -10,6 +10,9 @@ A GitHub PR-based Model Validation Bot built with FastAPI that automates model v
 
 ### Setup and Dependencies
 ```bash
+# Navigate to bot-server directory
+cd bot-server
+
 # Install with uv (recommended)
 uv sync --dev
 
@@ -24,6 +27,9 @@ uv run python -m app.main
 
 ### Testing
 ```bash
+# Navigate to bot-server directory first
+cd bot-server
+
 # Run all tests
 uv run pytest
 
@@ -43,6 +49,9 @@ curl -X POST "http://localhost:8000/commands/execute" \
 
 ### Code Quality
 ```bash
+# Navigate to bot-server directory first
+cd bot-server
+
 # Format code
 uv run black app/ tests/
 
@@ -59,11 +68,11 @@ uv run black app/ tests/ && uv run ruff check app/ tests/ && uv run mypy app/ &&
 ## Architecture Overview
 
 ### Core Components
-- **FastAPI Application** (`app/main.py`) - Main REST API with async support
-- **Slash Command System** (`app/utils/command_parser.py`) - Parse commands like `/train --epochs=10`
-- **Job Management** (`app/services/job_manager.py`) - Async background task execution
-- **GitHub Integration** (`app/services/github_service.py`) - PR comment handling and updates
-- **Mock Services** (`app/mocks/`) - Development-ready JFrog and ML platform simulators
+- **FastAPI Application** (`bot-server/app/main.py`) - Main REST API with async support
+- **Slash Command System** (`bot-server/app/utils/command_parser.py`) - Parse commands like `/train --epochs=10`
+- **Job Management** (`bot-server/app/services/job_manager.py`) - Async background task execution
+- **GitHub Integration** (`bot-server/app/services/github_service.py`) - PR comment handling and updates
+- **Mock Services** (`bot-server/app/mocks/`) - Development-ready JFrog and ML platform simulators
 
 ### Supported Slash Commands
 ```bash
@@ -86,10 +95,10 @@ uv run black app/ tests/ && uv run ruff check app/ tests/ && uv run mypy app/ &&
 ## Development Workflow
 
 ### Adding New Commands
-1. Add command type to `app/models/commands.py`
-2. Update parser in `app/utils/command_parser.py`
-3. Add execution logic in `app/services/job_manager.py`
-4. Add tests in `tests/`
+1. Add command type to `bot-server/app/models/commands.py`
+2. Update parser in `bot-server/app/utils/command_parser.py`
+3. Add execution logic in `bot-server/app/services/job_manager.py`
+4. Add tests in `bot-server/tests/`
 
 ### Mock vs Real Services
 - Set `MOCK_MODE=true` in `.env` for development with mock services
@@ -109,15 +118,19 @@ curl -X POST "http://localhost:8000/webhook/github" \
 
 ## Project Structure
 ```
-app/
-├── api/                 # FastAPI routes
-├── core/               # Configuration and settings  
-├── models/             # Pydantic data models
-├── services/           # Business logic
-├── mocks/              # Mock service implementations
-├── utils/              # Helper functions
-└── main.py            # Application entry point
-tests/                  # Test files
+bot-server/             # Model Validation Bot server
+├── app/
+│   ├── api/           # FastAPI routes
+│   ├── core/          # Configuration and settings  
+│   ├── models/        # Pydantic data models
+│   ├── services/      # Business logic
+│   ├── mocks/         # Mock service implementations
+│   ├── utils/         # Helper functions
+│   └── main.py        # Application entry point
+├── tests/             # Test files
+├── pyproject.toml     # Python project configuration
+├── Dockerfile         # Container configuration
+└── docker-compose.yml # Development environment
 ```
 
 ## Configuration
@@ -151,6 +164,9 @@ DATABASE_URL=postgresql://user:pass@db:5432/model_validation
 
 ### Useful Debug Commands
 ```bash
+# Navigate to bot-server directory first
+cd bot-server
+
 # Check if imports work
 uv run python -c "import app.main; print('✅ Import successful!')"
 
@@ -174,11 +190,19 @@ curl http://localhost:8000/jobs/{job_id}/status
 
 ### Development
 ```bash
+# Navigate to bot-server directory
+cd bot-server
+
+# Build and run with docker-compose
 docker-compose up --build
 ```
 
 ### Production
 ```bash
+# Navigate to bot-server directory
+cd bot-server
+
+# Build and run production container
 docker build -t model-validation-bot .
 docker run -p 8000:8000 --env-file .env.production model-validation-bot
 ```

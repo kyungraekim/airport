@@ -1,5 +1,5 @@
 [project]
-name = "airport"
+name = "airport-bot-server"
 version = "0.1.0"
 description = "GitHub PR-based Model Validation Bot with FastAPI"
 requires-python = ">=3.12"
