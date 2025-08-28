@@ -4,6 +4,24 @@ This directory contains GitHub Action workflows that are triggered when slash co
 
 ## Available Workflows
 
+### 0. Help Command (`help-command.yml`)
+**Triggered by:** `/help` commands in Issues and Pull Requests
+**Purpose:** Provide comprehensive documentation about all available commands
+
+**Command Examples:**
+```bash
+/help                    # Show all commands overview
+/help train              # Get detailed help for training
+/help eval               # Get help for evaluation commands
+```
+
+**Workflow Features:**
+- Context-aware help responses
+- Detailed parameter explanations
+- Interactive examples and use cases
+- Command-specific documentation
+- Automatic posting to Issues/PRs
+
 ### 1. Train Model (`train-model.yml`)
 **Triggered by:** `/train` commands in Issues
 **Purpose:** Train ML models with specified parameters
@@ -103,6 +121,30 @@ All workflows accept these common inputs:
 - `steps`: Pipeline steps to execute (`train,eval,test,validate`)
 - `skip`: Steps to skip
 - `config`: Pipeline configuration
+
+## Help System
+
+The help system (`help-command.yml`) provides comprehensive documentation and responds to `/help` commands:
+
+### Help Command Usage
+
+- **`/help`** - Shows complete overview of all available commands
+- **`/help <command>`** - Shows detailed help for specific command
+- **Examples:**
+  - `/help train` - Detailed training command help
+  - `/help eval` - Model evaluation help  
+  - `/help test` - Testing command help
+  - `/help pipeline` - Pipeline command help
+
+### Demo System
+
+Use the `demo-help.yml` workflow to test the help system:
+
+1. Go to Actions → Demo Help System
+2. Click "Run workflow"
+3. Select demo type (general-help, train-help, etc.)
+4. Enable "Create demo issue" 
+5. The workflow will create an issue and demonstrate the help response
 
 ## Manual Workflow Triggering
 

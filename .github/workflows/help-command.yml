@@ -1,0 +1,430 @@
+name: Help Command
+
+on:
+  workflow_dispatch:
+    inputs:
+      command_type:
+        description: 'Specific command to get help for (optional)'
+        required: false
+        default: ''
+      issue_number:
+        description: 'Issue number to reply to'
+        required: true
+      user:
+        description: 'User who requested help'
+        required: false
+
+jobs:
+  help:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Generate help response
+      id: help
+      run: |
+        python3 -c "
+import os
+import json
+
+command_type = '${{ inputs.command_type }}'.strip().lower()
+user = '${{ inputs.user }}'
+
+# Define all available commands with comprehensive documentation
+commands = {
+    'train': {
+        'name': '🧠 Train Model',
+        'description': 'Train machine learning models with configurable parameters',
+        'context': 'Issues only (long-running ML jobs)',
+        'usage': '/train [options]',
+        'options': {
+            '--config': 'Training configuration name (default: default)',
+            '--epochs': 'Number of training epochs (default: 10)',
+            '--lr, --learning_rate': 'Learning rate (default: 0.001)', 
+            '--gpu': 'Number of GPUs to use (default: 1)',
+            '--batch_size': 'Training batch size (default: 32)'
+        },
+        'examples': [
+            '/train --config=production --epochs=20 --lr=0.001',
+            '/train --epochs=50 --gpu=2 --batch_size=64',
+            '/train --config=experimental --lr=0.01'
+        ],
+        'outputs': [
+            '📊 Training metrics and loss curves',
+            '🤖 Trained model artifacts', 
+            '📋 Comprehensive training report',
+            '✅ Model validation results'
+        ],
+        'workflow': 'train-model.yml'
+    },
+    'eval': {
+        'name': '📊 Evaluate Model', 
+        'description': 'Evaluate and compare model performance with various metrics',
+        'context': 'Issues only (model evaluation jobs)',
+        'usage': '/eval [options]',
+        'options': {
+            '--model': 'Comma-separated list of models (default: baseline,incoming)',
+            '--metrics': 'Comma-separated metrics to compute (default: accuracy,f1)',
+            '--batch_size': 'Evaluation batch size (default: 64)'
+        },
+        'examples': [
+            '/eval --model=baseline,candidate --metrics=accuracy,f1,precision',
+            '/eval --model=latest --metrics=all',
+            '/eval --model=v1,v2,v3 --metrics=accuracy,auc'
+        ],
+        'outputs': [
+            '📈 Model comparison analysis',
+            '🎯 Performance metrics for each model',
+            '📊 Visual comparison charts',
+            '💡 Improvement recommendations'
+        ],
+        'workflow': 'evaluate-model.yml'
+    },
+    'test': {
+        'name': '🧪 Test Model',
+        'description': 'Run comprehensive testing suites on models',
+        'context': 'Pull Requests only (testing specific changes)',
+        'usage': '/test [options]',
+        'options': {
+            '--type': 'Test type: smoke, integration, performance, all (default: smoke)',
+            '--samples': 'Number of test samples (default: 100)',
+            '--model_path': 'Path to model for testing (default: models/latest)'
+        },
+        'examples': [
+            '/test --type=smoke --samples=100',
+            '/test --type=integration --samples=500', 
+            '/test --type=performance --samples=1000',
+            '/test --type=all'
+        ],
+        'outputs': [
+            '🔍 Test execution reports',
+            '⚡ Performance benchmarks',
+            '🐛 Error analysis and debugging info',
+            '📊 Test coverage statistics'
+        ],
+        'workflow': 'test-model.yml'
+    },
+    'pipeline': {
+        'name': '🔄 Model Pipeline',
+        'description': 'Execute multi-step ML pipelines with flexible configuration',
+        'context': 'Issues only (complex multi-step workflows)',
+        'usage': '/pipeline [options]',
+        'options': {
+            '--steps': 'Pipeline steps: train,eval,test,validate (default: train,eval)',
+            '--skip': 'Steps to skip (optional)',
+            '--config': 'Pipeline configuration (default: default)',
+            '--epochs': 'Training epochs if training included (default: 10)'
+        },
+        'examples': [
+            '/pipeline --steps=train,eval --epochs=15',
+            '/pipeline --steps=train,eval,test,validate',
+            '/pipeline --steps=all --skip=test',
+            '/pipeline --steps=eval,validate --config=production'
+        ],
+        'outputs': [
+            '📋 Complete pipeline execution report',
+            '📈 Step-by-step results and metrics',
+            '✅ Pipeline validation summary',
+            '📦 All intermediate artifacts'
+        ],
+        'workflow': 'model-pipeline.yml'
+    },
+    'status': {
+        'name': '📈 Status Check',
+        'description': 'Check the status of running jobs and workflows',
+        'context': 'Issues and Pull Requests (universal command)',
+        'usage': '/status [options]',
+        'options': {
+            '--job': 'Specific job ID to check (optional)'
+        },
+        'examples': [
+            '/status',
+            '/status --job=abc123'
+        ],
+        'outputs': [
+            '📊 Active job listings',
+            '🔄 Job progress and status',
+            '📝 Recent execution history',
+            '💻 Resource utilization info'
+        ],
+        'workflow': 'Built-in status checking'
+    }
+}
+
+# Generate help response based on request
+if command_type and command_type in commands:
+    # Specific command help
+    cmd = commands[command_type]
+    
+    help_response = f'''## {cmd['name']} Help
+
+**Description:** {cmd['description']}
+
+**Context:** {cmd['context']}
+
+**Usage:** \`{cmd['usage']}\`
+
+### Options
+'''
+    
+    for option, desc in cmd['options'].items():
+        help_response += f'• **\`{option}\`** - {desc}\\n'
+    
+    help_response += f'''
+### Examples
+'''
+    for example in cmd['examples']:
+        help_response += f'• \`{example}\`\\n'
+    
+    help_response += f'''
+### What You'll Get
+'''
+    for output in cmd['outputs']:
+        help_response += f'• {output}\\n'
+    
+    help_response += f'''
+### Technical Details
+• **Workflow File:** \`{cmd['workflow']}\`
+• **Execution Time:** Varies by complexity and parameters
+• **Artifacts:** Automatically uploaded to workflow run
+• **Status Updates:** Posted back to this issue/PR
+
+---
+💡 **Tip:** Use \`/help\` to see all available commands, or \`/help <command>\` for specific help.
+'''
+
+else:
+    # General help - all commands
+    help_response = f'''# 🤖 ML Bot Commands Reference
+
+{f'Hi @{user}! ' if user else ''}Welcome to the ML Model Validation Bot! This bot automates machine learning workflows through slash commands in GitHub Issues and Pull Requests.
+
+## 🎯 Available Commands
+
+'''
+    
+    # Group commands by context
+    issue_commands = []
+    pr_commands = []
+    universal_commands = []
+    
+    for cmd_key, cmd_data in commands.items():
+        if 'Issues only' in cmd_data['context']:
+            issue_commands.append((cmd_key, cmd_data))
+        elif 'Pull Requests only' in cmd_data['context']:
+            pr_commands.append((cmd_key, cmd_data))
+        else:
+            universal_commands.append((cmd_key, cmd_data))
+    
+    if issue_commands:
+        help_response += '''### 🔬 Issue Commands (Long-running ML Jobs)
+*Use these in Issues for experimentation and model development*
+
+'''
+        for cmd_key, cmd_data in issue_commands:
+            help_response += f'''**\`/{cmd_key}\`** - {cmd_data['description']}
+• Example: \`{cmd_data['examples'][0]}\`
+• Triggers: \`{cmd_data['workflow']}\`
+
+'''
+
+    if pr_commands:
+        help_response += '''### 🧪 Pull Request Commands (Testing & Validation)
+*Use these in Pull Requests for testing specific changes*
+
+'''
+        for cmd_key, cmd_data in pr_commands:
+            help_response += f'''**\`/{cmd_key}\`** - {cmd_data['description']}
+• Example: \`{cmd_data['examples'][0]}\`
+• Triggers: \`{cmd_data['workflow']}\`
+
+'''
+
+    if universal_commands:
+        help_response += '''### 📊 Universal Commands (Available Everywhere)
+*Use these in both Issues and Pull Requests*
+
+'''
+        for cmd_key, cmd_data in universal_commands:
+            help_response += f'''**\`/{cmd_key}\`** - {cmd_data['description']}
+• Example: \`{cmd_data['examples'][0]}\`
+
+'''
+
+    help_response += '''## 🚀 Quick Start Guide
+
+### For New Users:
+1. **\`/help train\`** - Learn about training models
+2. **\`/train --epochs=5\`** - Try a quick training run
+3. **\`/status\`** - Check your job progress
+4. **\`/help eval\`** - Learn about model evaluation
+
+### For Experienced Users:
+• **Model Comparison:** \`/eval --model=baseline,v1,v2 --metrics=accuracy,f1,auc\`
+• **Full Pipeline:** \`/pipeline --steps=train,eval,test,validate --epochs=20\`
+• **Performance Testing:** \`/test --type=performance --samples=1000\`
+
+## 🎛️ Command Syntax
+
+All commands follow this pattern:
+\`/command --option=value --flag\`
+
+**Parameter Types:**
+• **Strings:** \`--config=production\`
+• **Numbers:** \`--epochs=10\`, \`--lr=0.001\`
+• **Lists:** \`--model=baseline,candidate\` (comma-separated)
+• **Flags:** \`--gpu=2\`
+
+## 🏗️ Hybrid Architecture
+
+**🔬 Issues = Experimentation Lab**
+• Long-running training jobs (\`/train\`)
+• Model comparison studies (\`/eval\`)
+• Pipeline development (\`/pipeline\`)
+• Research discussions
+
+**🧪 Pull Requests = Quality Gate**
+• Fast validation tests (\`/test\`)
+• Regression checking
+• Performance benchmarks
+• Code change validation
+
+## 📊 What Happens When You Run Commands
+
+1. **Command Detection:** Bot parses your slash command
+2. **Workflow Trigger:** Appropriate GitHub Action starts
+3. **Progress Updates:** Real-time status in comments
+4. **Results:** Detailed reports and artifacts
+5. **Artifacts:** Download results from Actions tab
+
+## 💡 Pro Tips
+
+• **Get Specific Help:** \`/help <command>\` (e.g., \`/help train\`)
+• **Monitor Jobs:** Use \`/status\` to track progress
+• **Download Results:** Check Actions tab for artifacts
+• **Start Small:** Begin with default parameters
+• **Context Matters:** Use Issues for experiments, PRs for testing
+
+## 🔍 Getting More Help
+
+• **Specific Command:** \`/help train\`, \`/help eval\`, etc.
+• **Workflow Details:** Check \`.github/workflows/\` directory
+• **Issues:** Create an issue for bug reports or feature requests
+
+---
+🤖 **This help system is powered by GitHub Actions workflows that provide comprehensive ML automation!**
+'''
+
+# Save the help response to a file and environment variable
+with open('/tmp/help_response.md', 'w') as f:
+    f.write(help_response)
+
+# Also set as step output (GitHub Actions has size limits, so we'll use a file)
+print('✅ Help response generated successfully!')
+if command_type:
+    print(f'   Generated specific help for: {command_type}')
+else:
+    print('   Generated general help overview')
+print(f'   Response length: {len(help_response)} characters')
+"
+    
+    - name: Post help response to issue
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const helpResponse = fs.readFileSync('/tmp/help_response.md', 'utf8');
+          
+          const issueNumber = parseInt('${{ inputs.issue_number }}');
+          const commandType = '${{ inputs.command_type }}';
+          const user = '${{ inputs.user }}';
+          
+          // Add header with workflow info
+          const fullResponse = `${helpResponse}
+
+---
+<details>
+<summary>🔧 Workflow Information</summary>
+
+**Workflow:** \`help-command.yml\`  
+**Run ID:** \`${{ github.run_id }}\`  
+**Triggered:** ${new Date().toISOString()}  
+${user ? `**Requested by:** @${user}` : ''}
+
+**View this workflow run:** [${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+</details>`;
+
+          try {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: fullResponse
+            });
+            
+            console.log(`✅ Posted help response to issue #${issueNumber}`);
+            if (commandType) {
+              console.log(`   Help topic: ${commandType}`);
+            }
+          } catch (error) {
+            console.error('❌ Failed to post comment:', error);
+            throw error;
+          }
+    
+    - name: Create help artifacts
+      run: |
+        echo "📦 Creating help artifacts..."
+        
+        # Copy help response for artifact
+        cp /tmp/help_response.md ./
+        
+        # Create summary JSON
+        python3 -c "
+import json
+from datetime import datetime
+
+summary = {
+    'generated_at': datetime.utcnow().isoformat(),
+    'command_requested': '${{ inputs.command_type }}' or 'general',
+    'user': '${{ inputs.user }}',
+    'issue_number': '${{ inputs.issue_number }}',
+    'workflow_run_id': '${{ github.run_id }}',
+    'available_commands': ['train', 'eval', 'test', 'pipeline', 'status', 'help'],
+    'command_contexts': {
+        'issues_only': ['train', 'eval', 'pipeline'],
+        'prs_only': ['test'],
+        'universal': ['status', 'help']
+    }
+}
+
+with open('help_summary.json', 'w') as f:
+    json.dump(summary, f, indent=2)
+
+print('✅ Help artifacts created!')
+"
+    
+    - name: Upload help artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: help-response-${{ github.run_id }}
+        path: |
+          help_response.md
+          help_summary.json
+    
+    - name: Workflow summary
+      run: |
+        echo "📚 Help command workflow completed!"
+        echo ""
+        echo "📊 Summary:"
+        echo "   Issue #${{ inputs.issue_number }} - Help response posted"
+        echo "   Command topic: ${{ inputs.command_type || 'general overview' }}"
+        echo "   Requested by: ${{ inputs.user || 'anonymous' }}"
+        echo ""
+        echo "🔗 Links:"
+        echo "   Issue: ${{ github.server_url }}/${{ github.repository }}/issues/${{ inputs.issue_number }}"
+        echo "   Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo ""
+        echo "✅ Help documentation successfully delivered!"

@@ -1,0 +1,194 @@
+name: Demo Help System
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo_type:
+        description: 'Type of help demo'
+        required: true
+        type: choice
+        options:
+          - 'general-help'
+          - 'train-help'
+          - 'eval-help'
+          - 'test-help'
+          - 'pipeline-help'
+        default: 'general-help'
+      create_issue:
+        description: 'Create demo issue with help response'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Generate demo help content
+      id: demo
+      run: |
+        python3 -c "
+demo_type = '${{ inputs.demo_type }}'
+command = demo_type.replace('-help', '') if demo_type != 'general-help' else ''
+
+print(f'🎭 Generating demo for: {demo_type}')
+print(f'Command focus: {command if command else \"all commands\"}')
+
+# Create demo scenarios
+demo_scenarios = {
+    'general-help': {
+        'title': '📚 Complete ML Bot Help Overview',
+        'description': 'Comprehensive guide to all available commands',
+        'command': '',
+        'use_case': 'New user wants to see all available functionality'
+    },
+    'train-help': {
+        'title': '🧠 Model Training Help',
+        'description': 'Detailed guide for training ML models',
+        'command': 'train',
+        'use_case': 'User wants to train a model with specific parameters'
+    },
+    'eval-help': {
+        'title': '📊 Model Evaluation Help',
+        'description': 'Guide for comparing and evaluating models',
+        'command': 'eval', 
+        'use_case': 'User wants to compare multiple model versions'
+    },
+    'test-help': {
+        'title': '🧪 Model Testing Help',
+        'description': 'Guide for comprehensive model testing',
+        'command': 'test',
+        'use_case': 'User wants to validate model changes in a PR'
+    },
+    'pipeline-help': {
+        'title': '🔄 Pipeline Help',
+        'description': 'Guide for multi-step ML workflows',
+        'command': 'pipeline',
+        'use_case': 'User wants to run complete ML pipeline'
+    }
+}
+
+scenario = demo_scenarios[demo_type]
+print(f'📋 Demo scenario: {scenario[\"title\"]}')
+print(f'🎯 Use case: {scenario[\"use_case\"]}')
+
+# Save demo info for next steps
+import json
+with open('demo_info.json', 'w') as f:
+    json.dump(scenario, f, indent=2)
+"
+    
+    - name: Create demo issue (if requested)
+      if: inputs.create_issue == true
+      id: create_issue
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const demoInfo = JSON.parse(fs.readFileSync('demo_info.json', 'utf8'));
+          
+          const issueBody = `# ${demoInfo.title}
+
+This is a demonstration of the ML Bot help system.
+
+**Scenario:** ${demoInfo.use_case}
+
+## To see the help system in action:
+
+${demoInfo.command ? 
+  `**Command:** \`/help ${demoInfo.command}\`` : 
+  '**Command:** `/help`'
+}
+
+The help system would normally respond to this command automatically. For this demo, we'll trigger the help workflow manually.
+
+---
+*This issue was created by the demo-help.yml workflow*`;
+
+          const issue = await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `Demo: ${demoInfo.title}`,
+            body: issueBody,
+            labels: ['demo', 'help-system']
+          });
+          
+          console.log(`✅ Created demo issue #${issue.data.number}`);
+          return issue.data.number;
+    
+    - name: Trigger help workflow
+      if: steps.create_issue.outputs.result
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const demoInfo = JSON.parse(fs.readFileSync('demo_info.json', 'utf8'));
+          const issueNumber = ${{ steps.create_issue.outputs.result }};
+          
+          try {
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'help-command.yml',
+              ref: 'main',
+              inputs: {
+                command_type: demoInfo.command,
+                issue_number: issueNumber.toString(),
+                user: context.actor
+              }
+            });
+            
+            console.log(`✅ Triggered help workflow for issue #${issueNumber}`);
+            console.log(`   Command type: ${demoInfo.command || 'general'}`);
+          } catch (error) {
+            console.error('❌ Failed to trigger help workflow:', error);
+          }
+    
+    - name: Display demo summary
+      run: |
+        echo "🎭 Help System Demo Completed!"
+        echo "================================"
+        echo ""
+        
+        python3 -c "
+import json
+with open('demo_info.json', 'r') as f:
+    demo = json.load(f)
+    
+print(f'📋 Demo Type: {demo[\"title\"]}')
+print(f'🎯 Use Case: {demo[\"use_case\"]}')
+print(f'💡 Description: {demo[\"description\"]}')
+print('')
+
+if '${{ steps.create_issue.outputs.result }}':
+    print(f'📝 Created Demo Issue: #${{ steps.create_issue.outputs.result }}')
+    print(f'🔗 Issue URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ steps.create_issue.outputs.result }}')
+    print('')
+    print('🤖 The help-command.yml workflow has been triggered and will:')
+    print('   1. Generate comprehensive help content')
+    print('   2. Post the help response as a comment on the issue')
+    print('   3. Upload help artifacts for download')
+    print('')
+    print('🔍 Check the issue to see the help system in action!')
+else:
+    print('ℹ️  No demo issue was created (create_issue was disabled)')
+    print('')
+    print('To see the help system:')
+    print('   1. Create an issue manually')
+    print('   2. Run the help-command.yml workflow')
+    print('   3. Provide the issue number as input')
+
+print('')
+print('🚀 Available Demo Types:')
+print('   • general-help  - Complete overview of all commands')
+print('   • train-help    - Detailed training command help')
+print('   • eval-help     - Model evaluation help')
+print('   • test-help     - Testing and validation help')
+print('   • pipeline-help - Multi-step pipeline help')
+"
