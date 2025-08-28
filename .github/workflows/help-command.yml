@@ -25,7 +25,7 @@ jobs:
     - name: Generate help response
       id: help
       run: |
-        python3 -c "
+        cat > generate_help.py << 'EOF'
 import os
 import json
 
@@ -328,7 +328,9 @@ if command_type:
 else:
     print('   Generated general help overview')
 print(f'   Response length: {len(help_response)} characters')
-"
+EOF
+        
+        python3 generate_help.py
     
     - name: Post help response to issue
       uses: actions/github-script@v7

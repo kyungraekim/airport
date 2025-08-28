@@ -31,12 +31,14 @@ jobs:
     - name: Generate demo help content
       id: demo
       run: |
-        python3 -c "
+        cat > generate_demo.py << 'EOF'
+import json
+
 demo_type = '${{ inputs.demo_type }}'
 command = demo_type.replace('-help', '') if demo_type != 'general-help' else ''
 
 print(f'🎭 Generating demo for: {demo_type}')
-print(f'Command focus: {command if command else \"all commands\"}')
+print(f'Command focus: {command if command else "all commands"}')
 
 # Create demo scenarios
 demo_scenarios = {
@@ -73,14 +75,15 @@ demo_scenarios = {
 }
 
 scenario = demo_scenarios[demo_type]
-print(f'📋 Demo scenario: {scenario[\"title\"]}')
-print(f'🎯 Use case: {scenario[\"use_case\"]}')
+print(f'📋 Demo scenario: {scenario["title"]}')
+print(f'🎯 Use case: {scenario["use_case"]}')
 
 # Save demo info for next steps
-import json
 with open('demo_info.json', 'w') as f:
     json.dump(scenario, f, indent=2)
-"
+EOF
+        
+        python3 generate_demo.py
     
     - name: Create demo issue (if requested)
       if: inputs.create_issue == true
@@ -156,19 +159,22 @@ The help system would normally respond to this command automatically. For this d
         echo "================================"
         echo ""
         
-        python3 -c "
+        cat > demo_summary.py << 'EOF'
 import json
+import os
+
 with open('demo_info.json', 'r') as f:
     demo = json.load(f)
     
-print(f'📋 Demo Type: {demo[\"title\"]}')
-print(f'🎯 Use Case: {demo[\"use_case\"]}')
-print(f'💡 Description: {demo[\"description\"]}')
+print(f'📋 Demo Type: {demo["title"]}')
+print(f'🎯 Use Case: {demo["use_case"]}')
+print(f'💡 Description: {demo["description"]}')
 print('')
 
-if '${{ steps.create_issue.outputs.result }}':
-    print(f'📝 Created Demo Issue: #${{ steps.create_issue.outputs.result }}')
-    print(f'🔗 Issue URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ steps.create_issue.outputs.result }}')
+issue_result = '${{ steps.create_issue.outputs.result }}'
+if issue_result:
+    print(f'📝 Created Demo Issue: #{issue_result}')
+    print(f'🔗 Issue URL: ${{ github.server_url }}/${{ github.repository }}/issues/{issue_result}')
     print('')
     print('🤖 The help-command.yml workflow has been triggered and will:')
     print('   1. Generate comprehensive help content')
@@ -191,4 +197,6 @@ print('   • train-help    - Detailed training command help')
 print('   • eval-help     - Model evaluation help')
 print('   • test-help     - Testing and validation help')
 print('   • pipeline-help - Multi-step pipeline help')
-"
+EOF
+        
+        python3 demo_summary.py
