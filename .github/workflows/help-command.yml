@@ -14,6 +14,11 @@ on:
         description: 'User who requested help'
         required: false
 
+permissions:
+  issues: write
+  contents: read
+  pull-requests: write
+
 jobs:
   help:
     runs-on: ubuntu-latest
