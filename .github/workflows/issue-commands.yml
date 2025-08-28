@@ -1,0 +1,479 @@
+name: Issue Commands Handler
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  handle-command:
+    runs-on: ubuntu-latest
+    if: github.event.issue.state == 'open' && startsWith(github.event.comment.body, '/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Parse command
+      id: parse
+      run: |
+        # Get the comment body
+        COMMENT_BODY="${{ github.event.comment.body }}"
+        echo "Full comment: $COMMENT_BODY"
+        
+        # Extract the first line and parse command
+        FIRST_LINE=$(echo "$COMMENT_BODY" | head -n1 | tr -d '\r')
+        echo "First line: $FIRST_LINE"
+        
+        # Check if it starts with /
+        if [[ "$FIRST_LINE" =~ ^/([a-zA-Z]+)(.*)?$ ]]; then
+          COMMAND="${BASH_REMATCH[1]}"
+          ARGS="${BASH_REMATCH[2]}"
+          echo "Parsed command: $COMMAND"
+          echo "Arguments: $ARGS"
+          
+          # Set outputs
+          echo "command=$COMMAND" >> $GITHUB_OUTPUT
+          echo "args=$ARGS" >> $GITHUB_OUTPUT
+          echo "valid=true" >> $GITHUB_OUTPUT
+        else
+          echo "No valid command found"
+          echo "valid=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Handle help command
+      if: steps.parse.outputs.valid == 'true' && steps.parse.outputs.command == 'help'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const args = '${{ steps.parse.outputs.args }}';
+          const issueNumber = context.issue.number;
+          const user = context.payload.comment.user.login;
+          
+          console.log(`Processing /help command from @${user} in issue #${issueNumber}`);
+          
+          // Parse help arguments
+          let helpTopic = '';
+          const argMatch = args.match(/\s+(\w+)/);
+          if (argMatch) {
+            helpTopic = argMatch[1].toLowerCase();
+          }
+          
+          console.log(`Help topic: ${helpTopic || 'general'}`);
+          
+          // Generate help response
+          const helpResponses = {
+            'train': `## 🧠 Train Model Command Help
+          
+          **Description:** Train machine learning models with configurable parameters
+          
+          **Context:** Issues only (long-running ML jobs)
+          
+          **Usage:** \`/train [options]\`
+          
+          ### Options
+          • **\`--config\`** - Training configuration name (default: default)
+          • **\`--epochs\`** - Number of training epochs (default: 10)
+          • **\`--lr, --learning_rate\`** - Learning rate (default: 0.001)
+          • **\`--gpu\`** - Number of GPUs to use (default: 1)
+          • **\`--batch_size\`** - Training batch size (default: 32)
+          
+          ### Examples
+          • \`/train --config=production --epochs=20 --lr=0.001\`
+          • \`/train --epochs=50 --gpu=2 --batch_size=64\`
+          • \`/train --config=experimental --lr=0.01\`
+          
+          ### What You'll Get
+          • 📊 Training metrics and loss curves
+          • 🤖 Trained model artifacts
+          • 📋 Comprehensive training report
+          • ✅ Model validation results
+          
+          **Workflow File:** \`train-model.yml\`
+          
+          ---
+          💡 **Tip:** Use \`/help\` to see all available commands.`,
+          
+            'eval': `## 📊 Evaluate Model Command Help
+          
+          **Description:** Evaluate and compare model performance with various metrics
+          
+          **Context:** Issues only (model evaluation jobs)
+          
+          **Usage:** \`/eval [options]\`
+          
+          ### Options
+          • **\`--model\`** - Comma-separated list of models (default: baseline,incoming)
+          • **\`--metrics\`** - Comma-separated metrics to compute (default: accuracy,f1)
+          • **\`--batch_size\`** - Evaluation batch size (default: 64)
+          
+          ### Examples
+          • \`/eval --model=baseline,candidate --metrics=accuracy,f1,precision\`
+          • \`/eval --model=latest --metrics=all\`
+          • \`/eval --model=v1,v2,v3 --metrics=accuracy,auc\`
+          
+          ### What You'll Get
+          • 📈 Model comparison analysis
+          • 🎯 Performance metrics for each model
+          • 📊 Visual comparison charts
+          • 💡 Improvement recommendations
+          
+          **Workflow File:** \`evaluate-model.yml\`
+          
+          ---
+          💡 **Tip:** Use \`/help\` to see all available commands.`,
+          
+            'test': `## 🧪 Test Model Command Help
+          
+          **Description:** Run comprehensive testing suites on models
+          
+          **Context:** Pull Requests only (testing specific changes)
+          
+          **Usage:** \`/test [options]\`
+          
+          ### Options
+          • **\`--type\`** - Test type: smoke, integration, performance, all (default: smoke)
+          • **\`--samples\`** - Number of test samples (default: 100)
+          • **\`--model_path\`** - Path to model for testing (default: models/latest)
+          
+          ### Examples
+          • \`/test --type=smoke --samples=100\`
+          • \`/test --type=integration --samples=500\`
+          • \`/test --type=performance --samples=1000\`
+          • \`/test --type=all\`
+          
+          ### What You'll Get
+          • 🔍 Test execution reports
+          • ⚡ Performance benchmarks
+          • 🐛 Error analysis and debugging info
+          • 📊 Test coverage statistics
+          
+          **Workflow File:** \`test-model.yml\`
+          
+          ---
+          💡 **Tip:** Use \`/help\` to see all available commands.`,
+          
+            'pipeline': `## 🔄 Model Pipeline Command Help
+          
+          **Description:** Execute multi-step ML pipelines with flexible configuration
+          
+          **Context:** Issues only (complex multi-step workflows)
+          
+          **Usage:** \`/pipeline [options]\`
+          
+          ### Options
+          • **\`--steps\`** - Pipeline steps: train,eval,test,validate (default: train,eval)
+          • **\`--skip\`** - Steps to skip (optional)
+          • **\`--config\`** - Pipeline configuration (default: default)
+          • **\`--epochs\`** - Training epochs if training included (default: 10)
+          
+          ### Examples
+          • \`/pipeline --steps=train,eval --epochs=15\`
+          • \`/pipeline --steps=train,eval,test,validate\`
+          • \`/pipeline --steps=all --skip=test\`
+          • \`/pipeline --steps=eval,validate --config=production\`
+          
+          ### What You'll Get
+          • 📋 Complete pipeline execution report
+          • 📈 Step-by-step results and metrics
+          • ✅ Pipeline validation summary
+          • 📦 All intermediate artifacts
+          
+          **Workflow File:** \`model-pipeline.yml\`
+          
+          ---
+          💡 **Tip:** Use \`/help\` to see all available commands.`,
+          
+            'status': `## 📈 Status Check Command Help
+          
+          **Description:** Check the status of running jobs and workflows
+          
+          **Context:** Issues and Pull Requests (universal command)
+          
+          **Usage:** \`/status [options]\`
+          
+          ### Options
+          • **\`--job\`** - Specific job ID to check (optional)
+          
+          ### Examples
+          • \`/status\`
+          • \`/status --job=abc123\`
+          
+          ### What You'll Get
+          • 📊 Active job listings
+          • 🔄 Job progress and status
+          • 📝 Recent execution history
+          • 💻 Resource utilization info
+          
+          ---
+          💡 **Tip:** Use \`/help\` to see all available commands.`
+          };
+          
+          let helpContent = '';
+          
+          if (helpTopic && helpResponses[helpTopic]) {
+            helpContent = helpResponses[helpTopic];
+          } else if (helpTopic && !helpResponses[helpTopic]) {
+            helpContent = `## ❌ Unknown Command: \`${helpTopic}\`
+          
+          The command \`${helpTopic}\` is not recognized.
+          
+          ${helpResponses['']}`;
+          } else {
+            // General help
+            helpContent = `# 🤖 ML Bot Commands Reference
+          
+          Hi @${user}! Welcome to the ML Model Validation Bot! This bot automates machine learning workflows through slash commands in GitHub Issues and Pull Requests.
+          
+          ## 🎯 Available Commands
+          
+          ### 🔬 Issue Commands (Long-running ML Jobs)
+          *Use these in Issues for experimentation and model development*
+          
+          **\`/train\`** - Train machine learning models
+          • Configure epochs, learning rate, batch size, GPU count
+          • Example: \`/train --epochs=20 --lr=0.001 --gpu=2\`
+          • Triggers: \`train-model.yml\`
+          
+          **\`/eval\`** - Evaluate and compare models
+          • Compare multiple models with various metrics
+          • Example: \`/eval --model=baseline,candidate --metrics=accuracy,f1\`
+          • Triggers: \`evaluate-model.yml\`
+          
+          **\`/pipeline\`** - Execute multi-step ML workflows
+          • Chain training, evaluation, testing, and validation
+          • Example: \`/pipeline --steps=train,eval,test --epochs=15\`
+          • Triggers: \`model-pipeline.yml\`
+          
+          ### 🧪 Pull Request Commands (Testing & Validation)
+          *Use these in Pull Requests for testing specific changes*
+          
+          **\`/test\`** - Run comprehensive model testing
+          • Smoke, integration, and performance tests
+          • Example: \`/test --type=smoke --samples=100\`
+          • Triggers: \`test-model.yml\`
+          
+          ### 📊 Universal Commands (Available Everywhere)
+          *Use these in both Issues and Pull Requests*
+          
+          **\`/status\`** - Check job and workflow status
+          • View active jobs and progress
+          • Example: \`/status --job=abc123\`
+          
+          **\`/help\`** - Show this help message
+          • Get help for specific commands
+          • Example: \`/help train\`
+          
+          ## 🚀 Quick Start Guide
+          
+          ### For New Users:
+          1. **\`/help train\`** - Learn about training models
+          2. **\`/train --epochs=5\`** - Try a quick training run
+          3. **\`/status\`** - Check your job progress
+          4. **\`/help eval\`** - Learn about model evaluation
+          
+          ### For Experienced Users:
+          • **Model Comparison:** \`/eval --model=baseline,v1,v2 --metrics=accuracy,f1,auc\`
+          • **Full Pipeline:** \`/pipeline --steps=train,eval,test,validate --epochs=20\`
+          • **Performance Testing:** \`/test --type=performance --samples=1000\`
+          
+          ## 🎛️ Command Syntax
+          
+          All commands follow this pattern:
+          \`/command --option=value --flag\`
+          
+          **Parameter Types:**
+          • **Strings:** \`--config=production\`
+          • **Numbers:** \`--epochs=10\`, \`--lr=0.001\`
+          • **Lists:** \`--model=baseline,candidate\` (comma-separated)
+          
+          ## 🏗️ Context Rules
+          
+          **🔬 Issues = Experimentation Lab**
+          • Long-running training jobs (\`/train\`)
+          • Model comparison studies (\`/eval\`)
+          • Pipeline development (\`/pipeline\`)
+          
+          **🧪 Pull Requests = Quality Gate**
+          • Fast validation tests (\`/test\`)
+          • Regression checking
+          • Performance benchmarks
+          
+          ## 💡 Getting Specific Help
+          
+          Use \`/help <command>\` for detailed information:
+          • \`/help train\` - Training command details
+          • \`/help eval\` - Evaluation options
+          • \`/help test\` - Testing configurations
+          • \`/help pipeline\` - Pipeline orchestration
+          • \`/help status\` - Status checking
+          
+          ## 🔍 What Happens When You Run Commands
+          
+          1. **Command Detection:** Bot parses your slash command
+          2. **Workflow Trigger:** Appropriate GitHub Action starts
+          3. **Progress Updates:** Real-time status in comments
+          4. **Results:** Detailed reports and artifacts
+          5. **Artifacts:** Download results from Actions tab
+          
+          ---
+          🤖 **This help system responds automatically to \`/help\` commands in Issues and Pull Requests!**`;
+          }
+          
+          // Add footer with metadata
+          const fullResponse = `${helpContent}
+          
+          ---
+          <details>
+          <summary>🔧 Response Details</summary>
+          
+          **Triggered by:** @${user}  
+          **Command:** \`/help${helpTopic ? ' ' + helpTopic : ''}\`  
+          **Issue:** #${issueNumber}  
+          **Workflow:** \`issue-commands.yml\`  
+          **Generated:** ${new Date().toISOString()}  
+          
+          </details>`;
+          
+          try {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: fullResponse
+            });
+            
+            console.log(`✅ Posted help response to issue #${issueNumber}`);
+          } catch (error) {
+            console.error('❌ Failed to post help comment:', error);
+            throw error;
+          }
+    
+    - name: Handle other commands
+      if: steps.parse.outputs.valid == 'true' && steps.parse.outputs.command != 'help'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const command = '${{ steps.parse.outputs.command }}';
+          const args = '${{ steps.parse.outputs.args }}';
+          const issueNumber = context.issue.number;
+          const user = context.payload.comment.user.login;
+          const isPR = !!context.payload.issue.pull_request;
+          
+          console.log(`Processing /${command} command from @${user} in ${isPR ? 'PR' : 'Issue'} #${issueNumber}`);
+          
+          const validCommands = {
+            'train': { contexts: ['issue'], workflow: 'train-model.yml' },
+            'eval': { contexts: ['issue'], workflow: 'evaluate-model.yml' },
+            'pipeline': { contexts: ['issue'], workflow: 'model-pipeline.yml' },
+            'test': { contexts: ['pr'], workflow: 'test-model.yml' },
+            'status': { contexts: ['issue', 'pr'], workflow: 'built-in' }
+          };
+          
+          const commandInfo = validCommands[command];
+          
+          if (!commandInfo) {
+            // Unknown command
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `❌ **Unknown Command:** \`/${command}\`
+          
+          @${user}, the command \`/${command}\` is not recognized.
+          
+          Use \`/help\` to see all available commands, or \`/help <command>\` for specific help.
+          
+          **Available commands:** \`/train\`, \`/eval\`, \`/test\`, \`/pipeline\`, \`/status\`, \`/help\``
+            });
+            return;
+          }
+          
+          const currentContext = isPR ? 'pr' : 'issue';
+          
+          if (!commandInfo.contexts.includes(currentContext)) {
+            // Command not allowed in this context
+            const allowedContexts = commandInfo.contexts.map(c => c === 'pr' ? 'Pull Requests' : 'Issues').join(' or ');
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: `❌ **Command Not Allowed Here**
+          
+          @${user}, the \`/${command}\` command can only be used in **${allowedContexts}**.
+          
+          You tried to use it in a **${isPR ? 'Pull Request' : 'Issue'}**.
+          
+          **Context Rules:**
+          • **Issues**: \`/train\`, \`/eval\`, \`/pipeline\` (long-running ML jobs)
+          • **Pull Requests**: \`/test\` (testing specific changes)
+          • **Both**: \`/status\`, \`/help\`
+          
+          Use \`/help ${command}\` for more information about this command.`
+            });
+            return;
+          }
+          
+          // Command is valid and allowed in this context
+          let response = `🚀 **Command Accepted**
+          
+          @${user}, I've received your \`/${command}${args}\` command!
+          
+          `;
+          
+          if (commandInfo.workflow === 'built-in') {
+            response += `📊 **Status Check**
+          
+          This is a status command that would check active jobs and workflows.
+          
+          *Note: Full status functionality requires integration with a job management system.*`;
+          } else {
+            response += `**What happens next:**
+          1. 🔄 The \`${commandInfo.workflow}\` workflow will be triggered
+          2. 📊 Progress updates will be posted to this ${isPR ? 'PR' : 'issue'}
+          3. 📦 Results and artifacts will be available in the Actions tab
+          4. ✅ Final report will be posted when complete
+          
+          **Your command:** \`/${command}${args}\`
+          **Workflow:** \`${commandInfo.workflow}\`
+          **Context:** ${isPR ? 'Pull Request' : 'Issue'} (✅ allowed)
+          
+          *Note: This is a demo response. In a full implementation, the actual workflow would be triggered with your parameters.*`;
+          }
+          
+          response += `
+          
+          ---
+          💡 **Tip:** Use \`/status\` to check progress, or \`/help ${command}\` for detailed command help.
+          
+          <details>
+          <summary>🔧 Technical Details</summary>
+          
+          **Parsed Command:** \`${command}\`  
+          **Arguments:** \`${args || 'none'}\`  
+          **Context:** ${isPR ? 'Pull Request' : 'Issue'}  
+          **Allowed:** ✅ Yes  
+          **Workflow:** \`${commandInfo.workflow}\`  
+          **Handler:** \`issue-commands.yml\`  
+          
+          </details>`;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issueNumber,
+            body: response
+          });
+          
+          console.log(`✅ Posted ${command} command response to ${isPR ? 'PR' : 'issue'} #${issueNumber}`);
+    
+    - name: Log workflow completion
+      if: always()
+      run: |
+        echo "🎉 Issue command handler completed!"
+        echo "Command: ${{ steps.parse.outputs.command }}"
+        echo "Valid: ${{ steps.parse.outputs.valid }}"
+        echo "Issue: #${{ github.event.issue.number }}"
+        echo "User: ${{ github.event.comment.user.login }}"
