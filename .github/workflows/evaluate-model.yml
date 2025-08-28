@@ -1,0 +1,361 @@
+name: Evaluate Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Models to evaluate (comma-separated)'
+        required: false
+        default: 'baseline,incoming'
+      metrics:
+        description: 'Metrics to compute (comma-separated)'
+        required: false
+        default: 'accuracy,f1'
+      batch_size:
+        description: 'Batch size for evaluation'
+        required: false
+        default: '64'
+      job_id:
+        description: 'Job ID from bot'
+        required: false
+      command:
+        description: 'Original command'
+        required: false
+      user:
+        description: 'User who triggered'
+        required: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision scikit-learn pandas numpy matplotlib seaborn
+        # Add your ML evaluation dependencies here
+    
+    - name: Display evaluation parameters
+      run: |
+        echo "📊 Starting Model Evaluation"
+        echo "Models: ${{ inputs.model }}"
+        echo "Metrics: ${{ inputs.metrics }}"
+        echo "Batch Size: ${{ inputs.batch_size }}"
+        echo "Job ID: ${{ inputs.job_id }}"
+        echo "Original Command: ${{ inputs.command }}"
+        echo "Triggered by: ${{ inputs.user }}"
+    
+    - name: Prepare evaluation environment
+      run: |
+        echo "Setting up evaluation environment..."
+        mkdir -p models evaluation results
+        echo "Environment setup complete ✅"
+    
+    - name: Load test data
+      run: |
+        echo "Loading test data..."
+        python -c "
+import numpy as np
+import json
+
+# Simulate test data loading
+print('Generating sample test data...')
+test_data = {
+    'samples': 2000,
+    'features': 784,
+    'classes': 10,
+    'batch_size': int('${{ inputs.batch_size }}')
+}
+
+with open('evaluation/test_config.json', 'w') as f:
+    json.dump(test_data, f, indent=2)
+    
+print('Test data prepared ✅')
+"
+    
+    - name: Load models for evaluation
+      run: |
+        echo "📥 Loading models for evaluation..."
+        # Parse comma-separated model list
+        python -c "
+import json
+
+models_str = '${{ inputs.model }}'
+models = [m.strip() for m in models_str.split(',') if m.strip()]
+print(f'Models to evaluate: {models}')
+
+# Simulate model loading
+model_info = {}
+for model in models:
+    model_info[model] = {
+        'path': f'models/{model}_model.pt',
+        'status': 'loaded',
+        'parameters': 1000000 + hash(model) % 500000
+    }
+    print(f'✅ Loaded {model} model ({model_info[model][\"parameters\"]:,} parameters)')
+
+with open('evaluation/loaded_models.json', 'w') as f:
+    json.dump(model_info, f, indent=2)
+"
+    
+    - name: Run model evaluation
+      run: |
+        echo "🧮 Running model evaluation..."
+        python -c "
+import json
+import random
+import time
+from datetime import datetime
+
+# Load configuration
+with open('evaluation/loaded_models.json', 'r') as f:
+    models = json.load(f)
+
+metrics_str = '${{ inputs.metrics }}'
+requested_metrics = [m.strip() for m in metrics_str.split(',') if m.strip()]
+print(f'Computing metrics: {requested_metrics}')
+
+results = {}
+
+for model_name, model_info in models.items():
+    print(f'\\n📊 Evaluating {model_name} model...')
+    
+    # Simulate evaluation time
+    time.sleep(3)
+    
+    # Generate realistic but random metrics
+    base_accuracy = 0.85 + random.uniform(-0.1, 0.1)
+    
+    model_results = {
+        'accuracy': max(0, min(1, base_accuracy + random.uniform(-0.05, 0.05))),
+        'precision': max(0, min(1, base_accuracy + random.uniform(-0.03, 0.03))),
+        'recall': max(0, min(1, base_accuracy + random.uniform(-0.03, 0.03))),
+        'f1': max(0, min(1, base_accuracy + random.uniform(-0.02, 0.02))),
+        'auc': max(0, min(1, base_accuracy + random.uniform(0, 0.1))),
+        'evaluation_samples': 2000,
+        'inference_time_ms': random.uniform(10, 50)
+    }
+    
+    # Filter to requested metrics
+    filtered_results = {}
+    for metric in requested_metrics:
+        if metric in model_results:
+            filtered_results[metric] = model_results[metric]
+        else:
+            print(f'⚠️  Unknown metric: {metric}')
+    
+    if not filtered_results:
+        filtered_results = {'accuracy': model_results['accuracy']}
+    
+    results[model_name] = filtered_results
+    
+    print(f'Results for {model_name}:')
+    for metric, value in filtered_results.items():
+        print(f'  {metric}: {value:.4f}')
+
+# Save results
+with open('results/evaluation_results.json', 'w') as f:
+    json.dump(results, f, indent=2)
+
+print('\\n✅ Model evaluation completed!')
+"
+    
+    - name: Generate comparison analysis
+      run: |
+        echo "📈 Generating model comparison analysis..."
+        python -c "
+import json
+import sys
+
+with open('results/evaluation_results.json', 'r') as f:
+    results = json.load(f)
+
+if len(results) < 2:
+    print('Single model evaluation - no comparison needed')
+    sys.exit(0)
+
+# Find best performing model for each metric
+comparison = {}
+models = list(results.keys())
+
+for metric in set().union(*[model_results.keys() for model_results in results.values()]):
+    metric_values = {}
+    for model, model_results in results.items():
+        if metric in model_results:
+            metric_values[model] = model_results[metric]
+    
+    if metric_values:
+        best_model = max(metric_values.keys(), key=lambda m: metric_values[m])
+        comparison[metric] = {
+            'best_model': best_model,
+            'best_value': metric_values[best_model],
+            'all_values': metric_values
+        }
+
+# Calculate improvements
+improvements = {}
+if 'baseline' in results and len(results) > 1:
+    for other_model in results:
+        if other_model != 'baseline':
+            improvements[other_model] = {}
+            for metric in results['baseline']:
+                if metric in results[other_model]:
+                    baseline_val = results['baseline'][metric]
+                    other_val = results[other_model][metric]
+                    improvement = ((other_val - baseline_val) / baseline_val * 100) if baseline_val > 0 else 0
+                    improvements[other_model][metric] = improvement
+
+with open('results/comparison_analysis.json', 'w') as f:
+    json.dump({
+        'comparison': comparison,
+        'improvements': improvements
+    }, f, indent=2)
+
+print('✅ Comparison analysis generated')
+"
+    
+    - name: Create visualization
+      run: |
+        echo "📊 Creating evaluation visualizations..."
+        python -c "
+import json
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load results
+with open('results/evaluation_results.json', 'r') as f:
+    results = json.load(f)
+
+# Create bar chart comparison
+metrics = set()
+for model_results in results.values():
+    metrics.update(model_results.keys())
+metrics = sorted(list(metrics))
+
+fig, axes = plt.subplots(1, len(metrics), figsize=(4*len(metrics), 6))
+if len(metrics) == 1:
+    axes = [axes]
+
+for i, metric in enumerate(metrics):
+    models = []
+    values = []
+    for model, model_results in results.items():
+        if metric in model_results:
+            models.append(model)
+            values.append(model_results[metric])
+    
+    axes[i].bar(models, values)
+    axes[i].set_title(f'{metric.upper()}')
+    axes[i].set_ylabel('Score')
+    axes[i].set_ylim(0, 1)
+    
+    # Add value labels on bars
+    for j, v in enumerate(values):
+        axes[i].text(j, v + 0.01, f'{v:.3f}', ha='center')
+
+plt.tight_layout()
+plt.savefig('results/evaluation_comparison.png', dpi=150, bbox_inches='tight')
+print('✅ Visualization saved as evaluation_comparison.png')
+"
+    
+    - name: Generate evaluation report
+      run: |
+        echo "📋 Generating evaluation report..."
+        python -c "
+import json
+from datetime import datetime
+
+# Load all results
+with open('results/evaluation_results.json', 'r') as f:
+    results = json.load(f)
+
+with open('results/comparison_analysis.json', 'r') as f:
+    analysis = json.load(f)
+
+# Generate report
+report = f'''# Model Evaluation Report
+
+**Job ID:** ${{ inputs.job_id }}
+**Command:** \`${{ inputs.command }}\`
+**Triggered by:** ${{ inputs.user }}
+**Completed:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+## Evaluation Configuration
+- **Models:** ${{ inputs.model }}
+- **Metrics:** ${{ inputs.metrics }}
+- **Batch Size:** ${{ inputs.batch_size }}
+
+## Results Summary
+
+'''
+
+# Add individual model results
+for model, model_results in results.items():
+    report += f'''### {model.title()} Model
+'''
+    for metric, value in model_results.items():
+        report += f'- **{metric.upper()}:** {value:.4f}\\n'
+    report += '\\n'
+
+# Add comparison if available
+if analysis.get('comparison'):
+    report += '''## Best Performance by Metric
+
+'''
+    for metric, comp_data in analysis['comparison'].items():
+        best_model = comp_data['best_model']
+        best_value = comp_data['best_value']
+        report += f'- **{metric.upper()}:** {best_model} ({best_value:.4f})\\n'
+
+# Add improvements if available
+if analysis.get('improvements'):
+    report += '''
+## Improvements over Baseline
+
+'''
+    for model, improvements in analysis['improvements'].items():
+        report += f'''### {model.title()} vs Baseline
+'''
+        for metric, improvement in improvements.items():
+            sign = '+' if improvement >= 0 else ''
+            report += f'- **{metric.upper()}:** {sign}{improvement:.2f}%\\n'
+        report += '\\n'
+
+report += '''
+## Artifacts Generated
+- evaluation_results.json - Raw evaluation results
+- comparison_analysis.json - Statistical comparison
+- evaluation_comparison.png - Visual comparison chart
+
+## Status: ✅ Evaluation Completed Successfully
+'''
+
+with open('evaluation_report.md', 'w') as f:
+    f.write(report)
+    
+print('✅ Evaluation report generated')
+"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: evaluation-artifacts-${{ inputs.job_id }}
+        path: |
+          results/
+          evaluation_report.md
+          evaluation/
+    
+    - name: Evaluation summary
+      run: |
+        echo "🎉 Model evaluation workflow completed!"
+        echo "Check the artifacts for detailed results and comparisons."
+        echo "Workflow URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

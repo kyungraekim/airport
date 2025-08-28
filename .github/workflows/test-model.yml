@@ -1,0 +1,501 @@
+name: Test Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: false
+        default: 'smoke'
+      samples:
+        description: 'Number of test samples'
+        required: false
+        default: '100'
+      model_path:
+        description: 'Path to model for testing'
+        required: false
+        default: 'models/latest'
+      job_id:
+        description: 'Job ID from bot'
+        required: false
+      command:
+        description: 'Original command'
+        required: false
+      user:
+        description: 'User who triggered'
+        required: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision scikit-learn pandas numpy pytest
+        # Add your testing framework dependencies here
+    
+    - name: Display test parameters
+      run: |
+        echo "🧪 Starting Model Testing"
+        echo "Test Type: ${{ inputs.test_type }}"
+        echo "Sample Count: ${{ inputs.samples }}"
+        echo "Model Path: ${{ inputs.model_path }}"
+        echo "Job ID: ${{ inputs.job_id }}"
+        echo "Original Command: ${{ inputs.command }}"
+        echo "Triggered by: ${{ inputs.user }}"
+    
+    - name: Prepare test environment
+      run: |
+        echo "Setting up test environment..."
+        mkdir -p tests/data tests/results models
+        echo "Environment setup complete ✅"
+    
+    - name: Load test model
+      run: |
+        echo "📥 Loading model for testing..."
+        python -c "
+import json
+import os
+
+model_path = '${{ inputs.model_path }}'
+print(f'Loading model from: {model_path}')
+
+# Simulate model loading and validation
+model_info = {
+    'model_path': model_path,
+    'model_size_mb': 25.6,
+    'parameters': 1234567,
+    'architecture': 'CNN',
+    'input_shape': [1, 28, 28],
+    'output_classes': 10,
+    'status': 'loaded'
+}
+
+# Create mock model file
+os.makedirs('models', exist_ok=True)
+with open('models/test_model.info', 'w') as f:
+    json.dump(model_info, f, indent=2)
+
+print('✅ Model loaded successfully')
+print(f'   Parameters: {model_info[\"parameters\"]:,}')
+print(f'   Size: {model_info[\"model_size_mb\"]} MB')
+"
+    
+    - name: Generate test data
+      run: |
+        echo "🔧 Generating test data..."
+        python -c "
+import numpy as np
+import json
+
+samples = int('${{ inputs.samples }}')
+print(f'Generating {samples} test samples...')
+
+# Generate synthetic test data
+test_data = {
+    'samples_count': samples,
+    'feature_dimension': 784,
+    'classes': 10,
+    'data_type': 'synthetic',
+    'generated_at': '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")'
+}
+
+# Simulate data generation
+np.random.seed(42)
+X_test = np.random.randn(samples, 784)
+y_test = np.random.randint(0, 10, samples)
+
+print(f'✅ Generated test data:')
+print(f'   X_test shape: {X_test.shape}')
+print(f'   y_test shape: {y_test.shape}')
+
+# Save test data info
+with open('tests/data/test_data_info.json', 'w') as f:
+    json.dump(test_data, f, indent=2)
+"
+    
+    - name: Run smoke tests
+      if: inputs.test_type == 'smoke' || inputs.test_type == 'all'
+      run: |
+        echo "💨 Running smoke tests..."
+        python -c "
+import json
+import time
+import random
+from datetime import datetime
+
+samples = int('${{ inputs.samples }}')
+print(f'Running smoke tests on {samples} samples...')
+
+# Simulate smoke tests
+test_results = {
+    'test_type': 'smoke',
+    'total_tests': 5,
+    'passed_tests': 0,
+    'failed_tests': 0,
+    'test_details': []
+}
+
+smoke_tests = [
+    'Model loading test',
+    'Input shape validation',
+    'Forward pass test', 
+    'Output format validation',
+    'Basic inference test'
+]
+
+for i, test_name in enumerate(smoke_tests):
+    print(f'Running: {test_name}...')
+    time.sleep(1)  # Simulate test time
+    
+    # Simulate test result (95% success rate)
+    passed = random.random() > 0.05
+    
+    test_detail = {
+        'test_name': test_name,
+        'status': 'PASSED' if passed else 'FAILED',
+        'execution_time_ms': random.randint(50, 500)
+    }
+    
+    test_results['test_details'].append(test_detail)
+    
+    if passed:
+        test_results['passed_tests'] += 1
+        print(f'   ✅ {test_name} - PASSED')
+    else:
+        test_results['failed_tests'] += 1
+        print(f'   ❌ {test_name} - FAILED')
+
+# Save results
+with open('tests/results/smoke_test_results.json', 'w') as f:
+    json.dump(test_results, f, indent=2)
+
+success_rate = (test_results['passed_tests'] / test_results['total_tests']) * 100
+print(f'\\n📊 Smoke Test Results:')
+print(f'   Passed: {test_results[\"passed_tests\"]}/{test_results[\"total_tests\"]} ({success_rate:.1f}%)')
+
+if test_results['failed_tests'] > 0:
+    print('⚠️  Some smoke tests failed')
+    exit(1) if test_results['failed_tests'] > 2 else None  # Allow 1-2 failures
+else:
+    print('✅ All smoke tests passed!')
+"
+    
+    - name: Run integration tests
+      if: inputs.test_type == 'integration' || inputs.test_type == 'all'
+      run: |
+        echo "🔗 Running integration tests..."
+        python -c "
+import json
+import time
+import random
+
+samples = int('${{ inputs.samples }}')
+print(f'Running integration tests with {samples} samples...')
+
+test_results = {
+    'test_type': 'integration',
+    'total_tests': 3,
+    'passed_tests': 0,
+    'failed_tests': 0,
+    'test_details': []
+}
+
+integration_tests = [
+    'End-to-end pipeline test',
+    'Batch processing test',
+    'Error handling test'
+]
+
+for test_name in integration_tests:
+    print(f'Running: {test_name}...')
+    time.sleep(2)  # Integration tests take longer
+    
+    # Simulate test result (90% success rate for integration tests)
+    passed = random.random() > 0.10
+    
+    test_detail = {
+        'test_name': test_name,
+        'status': 'PASSED' if passed else 'FAILED',
+        'execution_time_ms': random.randint(1000, 5000),
+        'samples_processed': samples
+    }
+    
+    test_results['test_details'].append(test_detail)
+    
+    if passed:
+        test_results['passed_tests'] += 1
+        print(f'   ✅ {test_name} - PASSED')
+    else:
+        test_results['failed_tests'] += 1
+        print(f'   ❌ {test_name} - FAILED')
+
+# Save results
+with open('tests/results/integration_test_results.json', 'w') as f:
+    json.dump(test_results, f, indent=2)
+
+success_rate = (test_results['passed_tests'] / test_results['total_tests']) * 100
+print(f'\\n📊 Integration Test Results:')
+print(f'   Passed: {test_results[\"passed_tests\"]}/{test_results[\"total_tests\"]} ({success_rate:.1f}%)')
+
+if test_results['failed_tests'] > 0:
+    print('⚠️  Some integration tests failed')
+    exit(1) if test_results['failed_tests'] >= test_results['total_tests'] else None
+else:
+    print('✅ All integration tests passed!')
+"
+    
+    - name: Run performance tests
+      if: inputs.test_type == 'performance' || inputs.test_type == 'all'
+      run: |
+        echo "⚡ Running performance tests..."
+        python -c "
+import json
+import time
+import random
+
+samples = int('${{ inputs.samples }}')
+print(f'Running performance tests with {samples} samples...')
+
+# Simulate performance testing
+start_time = time.time()
+time.sleep(2)  # Simulate processing time
+end_time = time.time()
+
+inference_time = (end_time - start_time) * 1000  # Convert to ms
+throughput = samples / (end_time - start_time)
+
+test_results = {
+    'test_type': 'performance',
+    'samples_processed': samples,
+    'total_time_ms': inference_time,
+    'average_inference_time_ms': inference_time / samples,
+    'throughput_samples_per_second': throughput,
+    'memory_usage_mb': random.uniform(200, 400),
+    'cpu_utilization_percent': random.uniform(60, 90)
+}
+
+# Performance benchmarks
+benchmarks = {
+    'max_inference_time_ms': 50,
+    'min_throughput_sps': 100,
+    'max_memory_usage_mb': 500
+}
+
+# Check performance criteria
+passed_criteria = 0
+total_criteria = 3
+
+print(f'📊 Performance Results:')
+print(f'   Total processing time: {inference_time:.1f} ms')
+print(f'   Average inference time: {test_results[\"average_inference_time_ms\"]:.2f} ms/sample')
+print(f'   Throughput: {throughput:.1f} samples/sec')
+print(f'   Memory usage: {test_results[\"memory_usage_mb\"]:.1f} MB')
+
+# Validate against benchmarks
+if test_results['average_inference_time_ms'] <= benchmarks['max_inference_time_ms']:
+    print('   ✅ Inference time within limits')
+    passed_criteria += 1
+else:
+    print('   ❌ Inference time too high')
+
+if test_results['throughput_samples_per_second'] >= benchmarks['min_throughput_sps']:
+    print('   ✅ Throughput meets requirements')
+    passed_criteria += 1
+else:
+    print('   ❌ Throughput too low')
+
+if test_results['memory_usage_mb'] <= benchmarks['max_memory_usage_mb']:
+    print('   ✅ Memory usage acceptable')
+    passed_criteria += 1
+else:
+    print('   ❌ Memory usage too high')
+
+test_results['benchmarks'] = benchmarks
+test_results['passed_criteria'] = passed_criteria
+test_results['total_criteria'] = total_criteria
+
+with open('tests/results/performance_test_results.json', 'w') as f:
+    json.dump(test_results, f, indent=2)
+
+if passed_criteria == total_criteria:
+    print('\\n✅ All performance tests passed!')
+else:
+    print(f'\\n⚠️  Performance tests: {passed_criteria}/{total_criteria} criteria passed')
+"
+    
+    - name: Aggregate test results
+      run: |
+        echo "📋 Aggregating test results..."
+        python -c "
+import json
+import os
+from datetime import datetime
+
+# Collect all test results
+all_results = {
+    'test_suite': 'model_testing',
+    'test_type': '${{ inputs.test_type }}',
+    'samples': int('${{ inputs.samples }}'),
+    'model_path': '${{ inputs.model_path }}',
+    'timestamp': datetime.utcnow().isoformat(),
+    'results': {}
+}
+
+# Load individual test results
+result_files = [
+    ('smoke', 'tests/results/smoke_test_results.json'),
+    ('integration', 'tests/results/integration_test_results.json'),
+    ('performance', 'tests/results/performance_test_results.json')
+]
+
+total_passed = 0
+total_failed = 0
+
+for test_type, file_path in result_files:
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            results = json.load(f)
+        all_results['results'][test_type] = results
+        
+        if 'passed_tests' in results:
+            total_passed += results['passed_tests']
+            total_failed += results['failed_tests']
+
+all_results['summary'] = {
+    'total_tests_run': total_passed + total_failed,
+    'total_passed': total_passed,
+    'total_failed': total_failed,
+    'success_rate': (total_passed / (total_passed + total_failed) * 100) if (total_passed + total_failed) > 0 else 0,
+    'overall_status': 'PASSED' if total_failed == 0 else 'FAILED'
+}
+
+with open('tests/results/aggregate_test_results.json', 'w') as f:
+    json.dump(all_results, f, indent=2)
+
+print(f'\\n📊 Test Suite Summary:')
+print(f'   Total Tests: {all_results[\"summary\"][\"total_tests_run\"]}')
+print(f'   Passed: {total_passed}')
+print(f'   Failed: {total_failed}')
+print(f'   Success Rate: {all_results[\"summary\"][\"success_rate\"]:.1f}%')
+print(f'   Overall Status: {all_results[\"summary\"][\"overall_status\"]}')
+"
+    
+    - name: Generate test report
+      run: |
+        echo "📄 Generating test report..."
+        python -c "
+import json
+from datetime import datetime
+
+# Load aggregate results
+with open('tests/results/aggregate_test_results.json', 'r') as f:
+    results = json.load(f)
+
+report = f'''# Model Testing Report
+
+**Job ID:** ${{ inputs.job_id }}
+**Command:** \`${{ inputs.command }}\`
+**Triggered by:** ${{ inputs.user }}
+**Completed:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+## Test Configuration
+- **Test Type:** ${{ inputs.test_type }}
+- **Sample Count:** ${{ inputs.samples }}
+- **Model Path:** ${{ inputs.model_path }}
+
+## Test Summary
+- **Total Tests:** {results[\"summary\"][\"total_tests_run\"]}
+- **Passed:** {results[\"summary\"][\"total_passed\"]}
+- **Failed:** {results[\"summary\"][\"total_failed\"]}
+- **Success Rate:** {results[\"summary\"][\"success_rate\"]:.1f}%
+- **Overall Status:** {results[\"summary\"][\"overall_status\"]}
+
+'''
+
+# Add detailed results for each test type
+for test_type, test_results in results['results'].items():
+    report += f'''## {test_type.title()} Tests
+
+'''
+    if 'test_details' in test_results:
+        for test_detail in test_results['test_details']:
+            status_icon = '✅' if test_detail['status'] == 'PASSED' else '❌'
+            report += f'- {status_icon} **{test_detail[\"test_name\"]}** ({test_detail[\"execution_time_ms\"]}ms)\\n'
+    
+    if test_type == 'performance' and 'throughput_samples_per_second' in test_results:
+        report += f'''
+**Performance Metrics:**
+- Throughput: {test_results[\"throughput_samples_per_second\"]:.1f} samples/sec
+- Avg Inference Time: {test_results[\"average_inference_time_ms\"]:.2f} ms/sample
+- Memory Usage: {test_results[\"memory_usage_mb\"]:.1f} MB
+'''
+    
+    report += '\\n'
+
+# Overall conclusion
+if results['summary']['overall_status'] == 'PASSED':
+    report += '''## Conclusion: ✅ All Tests Passed
+
+The model has successfully passed all testing requirements and is ready for deployment.
+'''
+else:
+    report += '''## Conclusion: ⚠️ Some Tests Failed
+
+Review the failed tests above and address any issues before proceeding with deployment.
+'''
+
+report += '''
+## Artifacts Generated
+- aggregate_test_results.json - Complete test results
+- Individual test result files by type
+- Test data and configuration files
+
+'''
+
+with open('test_report.md', 'w') as f:
+    f.write(report)
+    
+print('✅ Test report generated')
+"
+    
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-artifacts-${{ inputs.job_id }}
+        path: |
+          tests/
+          test_report.md
+          models/test_model.info
+    
+    - name: Check test status
+      run: |
+        python -c "
+import json
+import sys
+
+with open('tests/results/aggregate_test_results.json', 'r') as f:
+    results = json.load(f)
+
+if results['summary']['overall_status'] == 'FAILED':
+    print('❌ Tests failed - workflow will be marked as failed')
+    sys.exit(1)
+else:
+    print('✅ All tests passed successfully')
+"
+    
+    - name: Testing summary
+      run: |
+        echo "🎉 Model testing workflow completed!"
+        echo "Check the artifacts for detailed test results."
+        echo "Workflow URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

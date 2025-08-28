@@ -1,0 +1,220 @@
+name: Train Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: 'Training configuration'
+        required: false
+        default: 'default'
+      epochs:
+        description: 'Number of training epochs'
+        required: false
+        default: '10'
+      learning_rate:
+        description: 'Learning rate'
+        required: false
+        default: '0.001'
+      gpu:
+        description: 'Number of GPUs'
+        required: false
+        default: '1'
+      batch_size:
+        description: 'Batch size'
+        required: false
+        default: '32'
+      job_id:
+        description: 'Job ID from bot'
+        required: false
+      command:
+        description: 'Original command'
+        required: false
+      user:
+        description: 'User who triggered'
+        required: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch torchvision scikit-learn pandas numpy matplotlib
+        # Add your ML framework dependencies here
+    
+    - name: Display training parameters
+      run: |
+        echo "🚀 Starting Model Training"
+        echo "Configuration: ${{ inputs.config }}"
+        echo "Epochs: ${{ inputs.epochs }}"
+        echo "Learning Rate: ${{ inputs.learning_rate }}"
+        echo "GPU Count: ${{ inputs.gpu }}"
+        echo "Batch Size: ${{ inputs.batch_size }}"
+        echo "Job ID: ${{ inputs.job_id }}"
+        echo "Original Command: ${{ inputs.command }}"
+        echo "Triggered by: ${{ inputs.user }}"
+    
+    - name: Initialize training environment
+      run: |
+        echo "Setting up training environment..."
+        mkdir -p models logs data
+        echo "Environment setup complete ✅"
+    
+    - name: Load training data
+      run: |
+        echo "Loading training data..."
+        # Add your data loading logic here
+        # For demo purposes, we'll simulate data preparation
+        python -c "
+import numpy as np
+import json
+
+# Simulate data loading
+print('Generating sample training data...')
+train_data = {
+    'samples': 10000,
+    'features': 784,
+    'classes': 10,
+    'config': '${{ inputs.config }}'
+}
+
+with open('data/train_config.json', 'w') as f:
+    json.dump(train_data, f, indent=2)
+    
+print('Training data prepared ✅')
+"
+    
+    - name: Train model
+      run: |
+        echo "🧠 Starting model training..."
+        # Add your actual training script here
+        python -c "
+import time
+import json
+import random
+
+epochs = int('${{ inputs.epochs }}')
+lr = float('${{ inputs.learning_rate }}')
+batch_size = int('${{ inputs.batch_size }}')
+
+print(f'Training for {epochs} epochs with lr={lr}, batch_size={batch_size}')
+
+# Simulate training progress
+for epoch in range(1, epochs + 1):
+    # Simulate training time
+    time.sleep(2)
+    
+    # Simulate metrics
+    loss = 1.0 * (0.9 ** epoch) + random.uniform(0, 0.1)
+    accuracy = min(0.95, 0.5 + (epoch / epochs) * 0.4 + random.uniform(0, 0.1))
+    
+    print(f'Epoch {epoch}/{epochs} - Loss: {loss:.4f}, Accuracy: {accuracy:.4f}')
+
+# Save final results
+results = {
+    'epochs': epochs,
+    'final_loss': loss,
+    'final_accuracy': accuracy,
+    'learning_rate': lr,
+    'batch_size': batch_size,
+    'model_path': 'models/trained_model.pt',
+    'training_time_minutes': epochs * 2 / 60
+}
+
+with open('models/training_results.json', 'w') as f:
+    json.dump(results, f, indent=2)
+
+print('Model training completed! ✅')
+print(f'Final accuracy: {accuracy:.3f}')
+"
+    
+    - name: Validate trained model
+      run: |
+        echo "🔍 Validating trained model..."
+        python -c "
+import json
+
+# Load results
+with open('models/training_results.json', 'r') as f:
+    results = json.load(f)
+
+# Perform basic validation
+if results['final_accuracy'] > 0.7:
+    print('✅ Model validation passed!')
+    print(f'   Accuracy: {results[\"final_accuracy\"]:.3f}')
+    print(f'   Loss: {results[\"final_loss\"]:.4f}')
+else:
+    print('❌ Model validation failed - accuracy too low')
+    exit(1)
+"
+    
+    - name: Save model artifacts
+      run: |
+        echo "💾 Saving model artifacts..."
+        # Create mock model file
+        echo "model_weights_placeholder" > models/trained_model.pt
+        echo "Model artifacts saved ✅"
+    
+    - name: Generate training report
+      run: |
+        echo "📊 Generating training report..."
+        python -c "
+import json
+from datetime import datetime
+
+with open('models/training_results.json', 'r') as f:
+    results = json.load(f)
+
+report = f'''
+# Model Training Report
+
+**Job ID:** ${{ inputs.job_id }}
+**Command:** \`${{ inputs.command }}\`
+**Triggered by:** ${{ inputs.user }}
+**Completed:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+## Training Configuration
+- **Config:** ${{ inputs.config }}
+- **Epochs:** {results['epochs']}
+- **Learning Rate:** {results['learning_rate']}
+- **Batch Size:** {results['batch_size']}
+- **Training Time:** {results['training_time_minutes']:.1f} minutes
+
+## Results
+- **Final Accuracy:** {results['final_accuracy']:.3f}
+- **Final Loss:** {results['final_loss']:.4f}
+- **Model Path:** {results['model_path']}
+
+## Status: ✅ Training Completed Successfully
+'''
+
+with open('training_report.md', 'w') as f:
+    f.write(report)
+    
+print('Training report generated ✅')
+"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: training-artifacts-${{ inputs.job_id }}
+        path: |
+          models/
+          training_report.md
+          data/train_config.json
+    
+    - name: Training summary
+      run: |
+        echo "🎉 Model training workflow completed!"
+        echo "Check the artifacts for detailed results."
+        echo "Workflow URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
