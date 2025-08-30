@@ -1,0 +1,26 @@
+[
+  {
+    "test_name": "login_test",
+    "status": "passed",
+    "duration": 1.23,
+    "browser": "chrome"
+  },
+  {
+    "test_name": "checkout_test", 
+    "status": "failed",
+    "duration": 2.45,
+    "browser": "firefox"
+  },
+  {
+    "test_name": "search_test",
+    "status": "passed", 
+    "duration": 0.87,
+    "browser": "safari"
+  },
+  {
+    "test_name": "profile_test",
+    "status": "passed",
+    "duration": 1.67,
+    "browser": "edge"
+  }
+]

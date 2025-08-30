@@ -1,0 +1,279 @@
+name: "Display Table Summary"
+description: "Convert CSV or JSON files to markdown tables in workflow summary"
+inputs:
+  files:
+    description: "Comma-separated list of file paths (CSV or JSON)"
+    required: true
+  title:
+    description: "Title for the summary section"
+    required: false
+    default: "Results Summary"
+  max-rows:
+    description: "Maximum number of rows to display (0 for all, must be a positive integer)"
+    required: false
+    default: "50"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Display files as tables
+      shell: bash
+      run: |
+        python3 << "EOF"
+        import csv
+        import json
+        import os
+        import sys
+        from pathlib import Path
+        
+        def format_cell_value(value, max_length=100):
+            """Format cell value for markdown table"""
+            str_value = str(value) if value is not None else ""
+            # Remove newlines and limit length
+            str_value = str_value.replace("\n", " ").replace("\r", " ")
+            if len(str_value) > max_length:
+                str_value = str_value[:max_length-3] + "..."
+            # Escape markdown characters
+            return str_value.replace("|", "\\|").replace("\\", "\\\\")
+        
+        def csv_to_markdown(filename, max_rows=0):
+            """Convert CSV file to markdown table"""
+            encodings = ["utf-8-sig", "utf-8", "cp949", "euc-kr", "latin1"]
+            rows = []
+            
+            # Try different encodings
+            for encoding in encodings:
+                try:
+                    with open(filename, "r", encoding=encoding) as f:
+                        reader = csv.reader(f)
+                        rows = []
+                        for i, row in enumerate(reader):
+                            # Skip empty rows
+                            if not any(cell.strip() for cell in row):
+                                continue
+                            rows.append(row)
+                            # Early exit if we have enough rows
+                            if max_rows > 0 and len(rows) > max_rows + 1:
+                                break
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+                except Exception as e:
+                    return f"**Error reading {filename}**: {type(e).__name__}: {str(e)}\n\n"
+            else:
+                return f"**Error reading {filename}**: Unable to decode file with any supported encoding\n\n"
+            
+            if not rows:
+                return f"**{filename}**: No data found\n\n"
+            
+            # Normalize row lengths
+            if rows:
+                max_cols = max(len(row) for row in rows) if rows else 0
+                for row in rows:
+                    while len(row) < max_cols:
+                        row.append("")
+            
+            # Limit rows if specified
+            truncated = False
+            if max_rows > 0 and len(rows) > max_rows + 1:
+                rows = rows[:max_rows + 1]
+                truncated = True
+            
+            if len(rows) < 2:  # Only header or no data
+                return f"**{filename}**: No data rows found\n\n"
+            
+            # Build markdown table
+            header_row = rows[0]
+            data_rows = rows[1:]
+            
+            # Header
+            header = "| " + " | ".join(format_cell_value(cell) for cell in header_row) + " |\n"
+            separator = "|" + "|".join([" --- " for _ in header_row]) + "|\n"
+            
+            # Data rows
+            data_content = ""
+            for row in data_rows:
+                formatted_row = [format_cell_value(cell) for cell in row]
+                data_content += "| " + " | ".join(formatted_row) + " |\n"
+            
+            result = header + separator + data_content
+            if truncated:
+                total_rows = "unknown (file truncated during read)"
+                result += f"\n*Showing first {max_rows} rows. Total rows: {total_rows}*\n"
+            
+            return result
+        
+        def json_to_markdown(filename, max_rows=0):
+            """Convert JSON file to markdown table"""
+            try:
+                with open(filename, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError as e:
+                return f"**Error reading {filename}**: Invalid JSON - {str(e)}\n\n"
+            except Exception as e:
+                return f"**Error reading {filename}**: {type(e).__name__}: {str(e)}\n\n"
+            
+            if isinstance(data, list):
+                if not data:
+                    return f"**{filename}**: Empty array\n\n"
+                
+                # Handle array of objects
+                truncated = False
+                if max_rows > 0 and len(data) > max_rows:
+                    display_data = data[:max_rows]
+                    truncated = True
+                else:
+                    display_data = data
+                
+                # Check if all items are dictionaries
+                dict_items = [item for item in display_data if isinstance(item, dict)]
+                if not dict_items:
+                    return f"**{filename}**: Array contains no dictionary objects\n\n"
+                
+                # Get all unique keys from all objects
+                headers = set()
+                for item in dict_items:
+                    headers.update(item.keys())
+                
+                if not headers:
+                    return f"**{filename}**: No valid fields found in objects\n\n"
+                
+                headers = sorted(list(headers))
+                
+                # Build table
+                header = "| " + " | ".join(format_cell_value(h) for h in headers) + " |\n"
+                separator = "|" + "|".join([" --- " for _ in headers]) + "|\n"
+                
+                data_content = ""
+                for item in dict_items:
+                    row_data = []
+                    for h in headers:
+                        value = item.get(h, "")
+                        row_data.append(format_cell_value(value))
+                    data_content += "| " + " | ".join(row_data) + " |\n"
+                
+                result = header + separator + data_content
+                if truncated:
+                    result += f"\n*Showing first {max_rows} items. Total items: {len(data)}*\n"
+                
+                return result
+                
+            elif isinstance(data, dict):
+                # Handle single object as key-value pairs
+                if not data:
+                    return f"**{filename}**: Empty object\n\n"
+                
+                items = list(data.items())
+                truncated = False
+                if max_rows > 0 and len(items) > max_rows:
+                    items = items[:max_rows]
+                    truncated = True
+                
+                header = "| Key | Value |\n"
+                separator = "| --- | --- |\n"
+                data_content = ""
+                
+                for key, value in items:
+                    formatted_key = format_cell_value(key)
+                    formatted_value = format_cell_value(value)
+                    data_content += f"| {formatted_key} | {formatted_value} |\n"
+                
+                result = header + separator + data_content
+                if truncated:
+                    result += f"\n*Showing first {max_rows} items. Total items: {len(data)}*\n"
+                
+                return result
+            else:
+                # Handle primitive values
+                value_type = type(data).__name__
+                return f"**{filename}**: Contains a single {value_type} value: `{format_cell_value(data)}`\n\n"
+        
+        def validate_inputs():
+            """Validate and parse inputs"""
+            try:
+                files_input = "${{ inputs.files }}".strip()
+                if not files_input:
+                    print("Error: No files specified")
+                    sys.exit(1)
+                
+                title = "${{ inputs.title }}".strip() or "Results Summary"
+                
+                max_rows_str = "${{ inputs.max-rows }}".strip()
+                try:
+                    max_rows = int(max_rows_str) if max_rows_str else 50
+                    if max_rows < 0:
+                        print(f"Warning: max-rows cannot be negative ({max_rows}), using 0 instead")
+                        max_rows = 0
+                except ValueError:
+                    print(f"Warning: Invalid max-rows value '{max_rows_str}', using default (50)")
+                    max_rows = 50
+                
+                return files_input, title, max_rows
+                
+            except Exception as e:
+                print(f"Error validating inputs: {e}")
+                sys.exit(1)
+        
+        def main():
+            """Main execution function"""
+            # Validate GitHub environment
+            summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+            if not summary_file:
+                print("Error: GITHUB_STEP_SUMMARY environment variable not set")
+                print("This action must run in a GitHub Actions environment")
+                sys.exit(1)
+            
+            # Parse and validate inputs
+            files_input, title, max_rows = validate_inputs()
+            
+            # Split files and clean up paths
+            file_paths = [f.strip() for f in files_input.split(",") if f.strip()]
+            if not file_paths:
+                print("Error: No valid file paths found")
+                sys.exit(1)
+            
+            # Build summary content
+            summary_content = f"## {title}\n\n"
+            processed_files = 0
+            
+            for file_path in file_paths:
+                if not os.path.exists(file_path):
+                    summary_content += f"**Warning**: File `{file_path}` not found\n\n"
+                    continue
+                
+                if not os.path.isfile(file_path):
+                    summary_content += f"**Warning**: `{file_path}` is not a regular file\n\n"
+                    continue
+                
+                file_ext = Path(file_path).suffix.lower()
+                file_name = Path(file_path).name
+                
+                summary_content += f"### {file_name}\n\n"
+                
+                if file_ext == ".csv":
+                    summary_content += csv_to_markdown(file_path, max_rows)
+                    processed_files += 1
+                elif file_ext == ".json":
+                    summary_content += json_to_markdown(file_path, max_rows)
+                    processed_files += 1
+                else:
+                    summary_content += f"**Warning**: Unsupported file type `{file_ext}` for `{file_path}`\n\n"
+                    summary_content += "Supported formats: .csv, .json\n\n"
+                
+                summary_content += "\n"
+            
+            if processed_files == 0:
+                summary_content += "**No files were successfully processed.**\n\n"
+            
+            # Write to GitHub summary
+            try:
+                with open(summary_file, "a", encoding="utf-8") as f:
+                    f.write(summary_content)
+                print(f"Successfully added table summary for {processed_files} file(s)")
+            except Exception as e:
+                print(f"Error writing to summary file: {e}")
+                sys.exit(1)
+        
+        if __name__ == "__main__":
+            main()
+        EOF

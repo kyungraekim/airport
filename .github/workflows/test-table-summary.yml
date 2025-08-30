@@ -1,0 +1,84 @@
+name: Test Table Summary Action
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      max_rows:
+        description: 'Maximum rows to display (0 for all)'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  test-table-summary:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create additional test files
+        run: |
+          # Create a larger CSV file for testing row limits
+          echo "id,product,category,price,stock" > large-data.csv
+          for i in {1..100}; do
+            echo "$i,Product $i,Category $((i % 5 + 1)),\$$(($i * 10 + 99)),$(($i * 2))" >> large-data.csv
+          done
+          
+          # Create a JSON object (not array) for testing
+          cat > config.json << 'EOF'
+          {
+            "app_name": "Test Application",
+            "version": "1.2.3",
+            "debug": true,
+            "database_url": "postgresql://localhost:5432/testdb",
+            "features": {
+              "auth": true,
+              "logging": false
+            }
+          }
+          EOF
+          
+          # Create an empty CSV file for testing edge cases  
+          echo "col1,col2,col3" > empty.csv
+          
+      - name: Test basic functionality
+        uses: ./.github/actions/table-summary
+        with:
+          files: "test-data.csv,test-results.json"
+          title: "Basic Test - CSV and JSON"
+          
+      - name: Test with row limit
+        uses: ./.github/actions/table-summary
+        with:
+          files: "large-data.csv"
+          title: "Row Limit Test"
+          max-rows: "${{ github.event.inputs.max_rows || '5' }}"
+          
+      - name: Test JSON object format
+        uses: ./.github/actions/table-summary
+        with:
+          files: "config.json"
+          title: "JSON Object Test"
+          
+      - name: Test multiple file types
+        uses: ./.github/actions/table-summary
+        with:
+          files: "test-data.csv,test-results.json,config.json,large-data.csv"
+          title: "Multiple Files Test"
+          max-rows: "3"
+          
+      - name: Test edge cases
+        uses: ./.github/actions/table-summary
+        with:
+          files: "empty.csv,nonexistent.json"
+          title: "Edge Cases Test"
+          
+      - name: Test without optional parameters
+        uses: ./.github/actions/table-summary
+        with:
+          files: "test-data.csv"
